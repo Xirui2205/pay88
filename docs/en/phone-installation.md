@@ -65,8 +65,8 @@ Repeat for Telebirr Agent, OpenClaw and the MDM daemon:
 2. Grant the runtime permissions requested by this build: SMS receipt, phone state/phone numbers and calls. Allow notifications if Android or MDM presents that control. This build does not request `READ_SMS`.
 3. Enable **Telebirr deterministic USSD service** under Accessibility.
 4. Exempt the app from battery optimization and permit auto-start.
-5. Type the approved Device Gateway `https://` URL, short-lived activation code and exact MDM client-certificate alias, then tap **Activate**. Confirm the displayed device ID with Platform Admin; the local screen does not display location or group.
-6. The agent creates its hardware-backed key and receives a revocable device certificate. Cloud activation must never return a wallet PIN.
+5. Type the approved Device Gateway `https://` URL and short-lived activation code, then tap **Activate**. Confirm the displayed device ID with Platform Admin; the local screen does not display location or group.
+6. The agent receives a revocable per-device token and encrypts it with Android Keystore. Cloud activation must never return a wallet PIN.
 7. Only after Steps 6.2-6.4 have completed and the official OpenClaw app is visibly online, open the Telebirr Agent onboarding screen and tap **Confirm OpenClaw is paired** locally. Do not use this control as a substitute for pairing or platform approval.
 8. Confirm the next signed heartbeat reports `openclaw_paired=true`. This is qualification evidence only; it does not activate the phone or either SIM.
 

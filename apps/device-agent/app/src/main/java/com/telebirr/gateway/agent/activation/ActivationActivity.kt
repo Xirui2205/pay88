@@ -6,7 +6,6 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
-import android.security.KeyChain
 import android.widget.Button
 import android.widget.EditText
 import android.widget.TextView
@@ -24,8 +23,6 @@ import com.telebirr.gateway.agent.pin.LocalPinEnrollmentValidator
 import com.telebirr.gateway.agent.service.HeartbeatService
 import com.telebirr.gateway.agent.transport.MtlsOkHttpClientFactory
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.util.concurrent.TimeUnit
 
 class ActivationActivity : AppCompatActivity() {
@@ -57,24 +54,15 @@ class ActivationActivity : AppCompatActivity() {
             val gateway = findViewById<EditText>(R.id.gatewayUrl).text.toString().trim()
             val codeField = findViewById<EditText>(R.id.activationCode)
             val code = codeField.text.toString().trim()
-            val certificateAlias = findViewById<EditText>(R.id.certificateAlias).text.toString().trim()
-            if (code.isBlank() || certificateAlias.isBlank()) {
+            if (code.isBlank()) {
                 status.text = getString(R.string.activation_fields_required)
                 return@setOnClickListener
             }
             status.text = getString(R.string.activating)
             lifecycleScope.launch {
                 runCatching {
-                    withContext(Dispatchers.IO) {
-                        check(KeyChain.getPrivateKey(this@ActivationActivity, certificateAlias) != null) {
-                            "MDM client certificate access has not been granted"
-                        }
-                        check(!KeyChain.getCertificateChain(this@ActivationActivity, certificateAlias).isNullOrEmpty()) {
-                            "MDM client certificate chain is unavailable"
-                        }
-                    }
                     val client = ActivationClient(
-                        MtlsOkHttpClientFactory.create(this@ActivationActivity, certificateAlias)
+                        MtlsOkHttpClientFactory.create(this@ActivationActivity, "")
                             .newBuilder()
                             .callTimeout(20, TimeUnit.SECONDS)
                             .readTimeout(20, TimeUnit.SECONDS)
@@ -86,7 +74,7 @@ class ActivationActivity : AppCompatActivity() {
                             activationCode = code,
                             installationId = installationId(),
                             hardwareSerial = installationId(),
-                            certificateAlias = certificateAlias,
+                            certificateAlias = "",
                             protocolVersion = BuildConfig.AGENT_PROTOCOL_VERSION,
                             manufacturer = Build.MANUFACTURER,
                             model = Build.MODEL,
@@ -118,7 +106,7 @@ class ActivationActivity : AppCompatActivity() {
                             websocketUrl = response.websocketUrl,
                             deviceId = response.deviceId,
                             deviceToken = response.deviceToken,
-                            clientCertificateAlias = certificateAlias,
+                            clientCertificateAlias = "",
                             signingKeyId = response.keyId,
                             signingPublicKeyX509 = com.telebirr.gateway.agent.crypto.PayloadVerifier
                                 .x509Base64FromPem(response.signingPublicKeyPem),

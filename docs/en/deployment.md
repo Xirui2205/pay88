@@ -33,6 +33,12 @@ per-process enforcement.
 
 ## Device mTLS ingress
 
+For a small controlled pilot, set `DEVICE_MTLS_REQUIRED=false`. Activation then
+uses the 15-minute one-time code and issues a revocable device token stored with
+Android Keystore; all device traffic must still use HTTPS/WSS. Do not expose the
+pilot endpoint beyond the intended network, and move to the mTLS configuration
+below before production. If the variable is absent, production requires mTLS.
+
 Device WebSockets use a dedicated TLS path, separate from the public HTTPS
 ingress:
 

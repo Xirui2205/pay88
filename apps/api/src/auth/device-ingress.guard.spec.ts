@@ -3,12 +3,15 @@ import { assertTrustedDeviceIngress } from './device-ingress.guard';
 
 const originalEnvironment = process.env.NODE_ENV;
 const originalSecret = process.env.DEVICE_MTLS_PROXY_SECRET;
+const originalMtlsRequired = process.env.DEVICE_MTLS_REQUIRED;
 
 afterEach(() => {
   if (originalEnvironment === undefined) delete process.env.NODE_ENV;
   else process.env.NODE_ENV = originalEnvironment;
   if (originalSecret === undefined) delete process.env.DEVICE_MTLS_PROXY_SECRET;
   else process.env.DEVICE_MTLS_PROXY_SECRET = originalSecret;
+  if (originalMtlsRequired === undefined) delete process.env.DEVICE_MTLS_REQUIRED;
+  else process.env.DEVICE_MTLS_REQUIRED = originalMtlsRequired;
 });
 
 describe('trusted device ingress', () => {
@@ -31,5 +34,11 @@ describe('trusted device ingress', () => {
       'x-client-cert-sha256': 'b'.repeat(64),
     };
     expect(() => assertTrustedDeviceIngress((name) => values[name])).not.toThrow();
+  });
+
+  it('allows explicit pilot token authentication without mTLS', () => {
+    process.env.NODE_ENV = 'production';
+    process.env.DEVICE_MTLS_REQUIRED = 'false';
+    expect(() => assertTrustedDeviceIngress(() => undefined)).not.toThrow();
   });
 });

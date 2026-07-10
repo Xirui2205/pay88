@@ -4,8 +4,12 @@ import { constantTimeEqual } from '../common/crypto';
 
 type HeaderReader = (name: string) => string | undefined;
 
+export function deviceMtlsRequired(): boolean {
+  return process.env.NODE_ENV === 'production' && process.env.DEVICE_MTLS_REQUIRED !== 'false';
+}
+
 export function assertTrustedDeviceIngress(header: HeaderReader): void {
-  if (process.env.NODE_ENV !== 'production') return;
+  if (!deviceMtlsRequired()) return;
   const expected = process.env.DEVICE_MTLS_PROXY_SECRET ?? '';
   const provided = header('x-device-ingress-secret') ?? '';
   const fingerprint = (header('x-client-cert-sha256') ?? '').toLowerCase();

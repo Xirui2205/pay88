@@ -8,7 +8,7 @@ data class ActivationRequest(
     @SerialName("activation_code") val activationCode: String,
     @SerialName("installation_id") val installationId: String,
     @SerialName("hardware_serial") val hardwareSerial: String,
-    @SerialName("certificate_alias") val certificateAlias: String,
+    @SerialName("certificate_alias") val certificateAlias: String = "",
     @SerialName("protocol_version") val protocolVersion: String,
     val manufacturer: String,
     val model: String,

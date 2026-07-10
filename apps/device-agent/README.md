@@ -26,8 +26,9 @@ Activation uses `POST /v1/device/activate` and the standard
 `status/message/code/data/request_id` envelope. Its data supplies the one-time
 device bearer token, WSS URL, heartbeat interval, signing key ID/public key and the
 two enrolled SIM identities. The token is AES-GCM encrypted by Android Keystore at
-rest. WebSocket setup uses mTLS plus `Authorization: Bearer …` and `X-Device-Id`;
-the trusted proxy, not the app, supplies the verified certificate fingerprint.
+rest. Pilot WebSocket setup uses `Authorization: Bearer …` and `X-Device-Id` over
+WSS. Production can additionally require mTLS and a trusted-proxy certificate
+fingerprint.
 
 Jobs, flow profiles and lease renewals use the exact
 `key_id/payload_base64/signature_base64` P-256/SHA-256 envelope. Fencing tokens are
@@ -41,8 +42,7 @@ Install JDK 17 and Android SDK 35, then run `gradle :app:testDebugUnitTest` from
 directory. A checked-in Gradle wrapper is intentionally omitted from this
 greenfield source package; CI should use its pinned Gradle 8.7 distribution.
 
-Before field use, inject the environment bootstrap trust key, provision an app
-client certificate through MDM/activation, qualify all Telebirr SMS and USSD
+Before field use, inject the environment bootstrap trust key, qualify all Telebirr SMS and USSD
 transcripts, and confirm AirDroid/Accessibility coexistence on the exact TECNO
 build. No sample credential, certificate, or PIN is included.
 
@@ -52,8 +52,8 @@ Use only the stock-signed CH9n Android 12 / HiOS 8.6 image. Factory-reset and
 enroll the handset as an AirDroid Business Device Owner; do not root it, install an
 unofficial ROM, or leave ADB exposed. Record both ICCIDs, Telebirr numbers, names,
 slots, IMEIs, serial, and build fingerprint before activation.
-The MDM must install the per-device client certificate and grant this package
-non-interactive KeyChain access to its alias before the one-time code is entered.
+For a controlled pilot, set `DEVICE_MTLS_REQUIRED=false` on the API and use the
+revocable device token over HTTPS/WSS. Enable per-device mTLS before production.
 
 For each of the two SIM slots, independently verify SMS subscription attribution,
 `*127#` phone-account routing, send-money confirmation, balance-query SMS lease

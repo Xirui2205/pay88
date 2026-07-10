@@ -18,6 +18,14 @@ import javax.net.ssl.X509TrustManager
 
 object MtlsOkHttpClientFactory {
     fun create(context: Context, certificateAlias: String): OkHttpClient {
+        if (certificateAlias.isBlank()) {
+            return OkHttpClient.Builder()
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(0, TimeUnit.MILLISECONDS)
+                .pingInterval(25, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .build()
+        }
         val privateKey = KeyChain.getPrivateKey(context, certificateAlias)
             ?: throw IllegalStateException("MDM client private key is unavailable")
         val chain = KeyChain.getCertificateChain(context, certificateAlias)

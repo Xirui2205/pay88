@@ -27,7 +27,7 @@ class AgentConfigStore(context: Context) {
         val baseUrl = preferences.getString(BASE_URL, null) ?: return null
         val websocketUrl = preferences.getString(WEBSOCKET_URL, null) ?: return null
         val deviceId = preferences.getString(DEVICE_ID, null) ?: return null
-        val certificateAlias = preferences.getString(CERT_ALIAS, null) ?: return null
+        val certificateAlias = preferences.getString(CERT_ALIAS, "") ?: ""
         val keyId = preferences.getString(SIGNING_KEY_ID, null) ?: return null
         val signingKey = preferences.getString(SIGNING_KEY, null) ?: return null
         val tokenIv = preferences.getString(DEVICE_TOKEN_IV, null) ?: return null
@@ -65,7 +65,6 @@ class AgentConfigStore(context: Context) {
         validateWebsocketUrl(config.websocketUrl)
         require(config.deviceId.isNotBlank())
         require(config.deviceToken.matches(Regex("[A-Za-z0-9_-]{32,512}")))
-        require(config.clientCertificateAlias.isNotBlank())
         require(config.signingKeyId.matches(Regex("[a-zA-Z0-9._:-]{1,64}")))
         require(config.signingPublicKeyX509.isNotBlank())
         require(config.heartbeatIntervalSeconds in 15..60)

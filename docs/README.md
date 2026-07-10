@@ -32,6 +32,7 @@
 - [手机手册 - 简体中文](../output/pdf/telebirr-phone-installation-zh-CN.pdf)
 - [Operations runbook - English](../output/pdf/telebirr-operations-runbook-en.pdf)
 - [运营对账手册 - 简体中文](../output/pdf/telebirr-operations-runbook-zh-CN.pdf)
+- [开发者部署手册 - 简体中文](../output/pdf/telebirr-deployment-guide-zh-CN.pdf)
 
 ## Additional guides / 补充指南
 

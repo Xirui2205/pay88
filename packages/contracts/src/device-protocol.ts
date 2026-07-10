@@ -5,7 +5,7 @@ export const activationRequestSchema = z.object({
   activation_code: z.string().min(6).max(128),
   installation_id: z.string().min(4).max(128),
   hardware_serial: z.string().min(2).max(120),
-  certificate_alias: z.string().min(1).max(128),
+  certificate_alias: z.string().max(128).optional(),
   protocol_version: z.literal('1'),
   manufacturer: z.string().min(1).max(100),
   model: z.string().min(1).max(100),

@@ -6,14 +6,13 @@
     <string name="activation_help">输入平台生成的短期代码。激活码与 Telebirr PIN 绝不会一起保存。</string>
     <string name="gateway_url_hint">https://devices.example.com</string>
     <string name="activation_code_hint">一次性激活码</string>
-    <string name="certificate_alias_hint">MDM 客户端证书别名</string>
     <string name="activate">激活</string>
     <string name="save_pin">保存本机 SIM PIN</string>
     <string name="iccid_hint">SIM ICCID</string>
     <string name="pin_hint">Telebirr PIN（仅保存在本机）</string>
     <string name="pin_confirmation_hint">再次输入 Telebirr PIN（仅保存在本机）</string>
     <string name="not_activated">尚未激活</string>
-    <string name="activation_fields_required">必须填写激活码和 MDM 证书别名</string>
+    <string name="activation_fields_required">必须填写激活码</string>
     <string name="activating">正在激活…</string>
     <string name="activated_device">已激活：%1$s</string>
     <string name="activation_failed">激活失败</string>

@@ -15,6 +15,7 @@ import { DeviceProfilesService } from './device-profiles.service';
 import { EvidenceStoreService } from '../sms/evidence-store.service';
 import { encryptEvidence, sanitizeUssdEvidence, ussdDiagnosticLabel } from '../common/evidence-crypto';
 import { AlertsService } from '../alerts/alerts.service';
+import { deviceMtlsRequired } from '../auth/device-ingress.guard';
 import { CURRENT_DEVICE_PROFILE_VERSION } from './device-profile-version';
 
 export const deviceWsHeartbeatSchema = z.object({
@@ -131,7 +132,8 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
       const deviceId = String(request.headers['x-device-id'] ?? '');
       const token = String(request.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
       const protocol = String(request.headers['x-device-protocol'] ?? '');
-      if (process.env.NODE_ENV === 'production') {
+      const requireMtls = deviceMtlsRequired();
+      if (requireMtls) {
         const ingressSecret = String(request.headers['x-device-ingress-secret'] ?? '');
         const expectedIngressSecret = process.env.DEVICE_MTLS_PROXY_SECRET ?? '';
         if (!expectedIngressSecret || !ingressSecret || !constantTimeEqual(ingressSecret, expectedIngressSecret)) throw new Error('untrusted_ingress');
@@ -140,13 +142,13 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
       if (!device?.authTokenHash || protocol !== '1' || !(await argon2.verify(device.authTokenHash, token))) throw new Error('unauthorized');
       if (device.status === 'quarantined' || device.status === 'retired') throw new Error('device_disabled');
       const fingerprint = String(request.headers['x-client-cert-sha256'] ?? '').toLowerCase();
-      if (process.env.NODE_ENV === 'production' && (request.headers['x-client-cert-verified'] !== 'SUCCESS' || !/^[a-f0-9]{64}$/.test(fingerprint))) {
+      if (requireMtls && (request.headers['x-client-cert-verified'] !== 'SUCCESS' || !/^[a-f0-9]{64}$/.test(fingerprint))) {
         throw new Error('mtls_required');
       }
-      if (device.certificateFingerprint && (!fingerprint || !constantTimeEqual(fingerprint, device.certificateFingerprint.toLowerCase()))) {
+      if (requireMtls && device.certificateFingerprint && (!fingerprint || !constantTimeEqual(fingerprint, device.certificateFingerprint.toLowerCase()))) {
         throw new Error('certificate_mismatch');
       }
-      if (!device.certificateFingerprint && process.env.NODE_ENV === 'production') {
+      if (requireMtls && !device.certificateFingerprint) {
         await this.prisma.device.updateMany({ where: { id: device.id, certificateFingerprint: null }, data: { certificateFingerprint: fingerprint } });
         const pinned = await this.prisma.device.findUnique({ where: { id: device.id }, select: { certificateFingerprint: true } });
         if (!pinned?.certificateFingerprint || !constantTimeEqual(fingerprint, pinned.certificateFingerprint.toLowerCase())) throw new Error('certificate_mismatch');
@@ -199,7 +201,7 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
       select: { authTokenHash: true, certificateFingerprint: true, status: true },
     });
     if (!current?.authTokenHash || current.authTokenHash !== identity.authTokenHash || current.status === 'retired') return false;
-    if (current.certificateFingerprint) {
+    if (deviceMtlsRequired() && current.certificateFingerprint) {
       if (!identity.certificateFingerprint) return false;
       if (!constantTimeEqual(current.certificateFingerprint.toLowerCase(), identity.certificateFingerprint.toLowerCase())) return false;
     }

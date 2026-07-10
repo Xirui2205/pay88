@@ -34,6 +34,7 @@ DOCS = [
     (ROOT / "docs/zh-CN/phone-installation.md", OUT / "telebirr-phone-installation-zh-CN.pdf", "ZH", "operator"),
     (ROOT / "docs/en/operations.md", OUT / "telebirr-operations-runbook-en.pdf", "EN", "operator"),
     (ROOT / "docs/zh-CN/operations.md", OUT / "telebirr-operations-runbook-zh-CN.pdf", "ZH", "operator"),
+    (ROOT / "docs/zh-CN/deployment.md", OUT / "telebirr-deployment-guide-zh-CN.pdf", "ZH", "operator"),
 ]
 
 
@@ -70,7 +71,28 @@ class ManualDocTemplate(BaseDocTemplate):
 def register_fonts() -> None:
     pdfmetrics.registerFont(TTFont("ManualLatin", r"C:\Windows\Fonts\arial.ttf"))
     pdfmetrics.registerFont(TTFont("ManualLatinBold", r"C:\Windows\Fonts\arialbd.ttf"))
-    pdfmetrics.registerFont(TTFont("ManualCJK", r"C:\Windows\Fonts\simhei.ttf"))
+    variable_cjk = Path(r"C:\Windows\Fonts\NotoSansSC-VF.ttf")
+    font_cache = ROOT / "tmp" / "fonts"
+    regular_cjk = font_cache / "NotoSansSC-Regular.ttf"
+    bold_cjk = font_cache / "NotoSansSC-Bold.ttf"
+    try:
+        if not regular_cjk.exists() or not bold_cjk.exists():
+            from fontTools.ttLib import TTFont as FontToolsTTFont
+            from fontTools.varLib.instancer import instantiateVariableFont
+
+            font_cache.mkdir(parents=True, exist_ok=True)
+            for target, weight in ((regular_cjk, 400), (bold_cjk, 700)):
+                variable_font = FontToolsTTFont(str(variable_cjk))
+                instantiateVariableFont(variable_font, {"wght": weight}, inplace=True)
+                variable_font.save(str(target))
+                variable_font.close()
+    except (ImportError, OSError):
+        # The variable font still embeds and renders correctly; only the
+        # visual weight differs when fontTools is unavailable.
+        regular_cjk = variable_cjk
+        bold_cjk = variable_cjk
+    pdfmetrics.registerFont(TTFont("ManualCJK", str(regular_cjk)))
+    pdfmetrics.registerFont(TTFont("ManualCJKBold", str(bold_cjk)))
 
 
 def styles(font: str, bold: str, field: bool = False):
@@ -192,7 +214,9 @@ def parse_markdown(markdown: str, style_map: dict[str, Paragraph], field: bool =
             story.append(Paragraph(inline(text), style_map["bullet"], bulletText="[X]" if checked else "[ ]"))
         elif re.match(r"^\d+\.\s", line):
             number, text = line.split(".", 1)
-            story.append(Paragraph(inline(text), style_map["bullet"], bulletText=f"{number}."))
+            # Keep list numbers in the paragraph text. ReportLab's separate
+            # bulletText font subset can intermittently omit digits in CJK PDFs.
+            story.append(Paragraph(inline(f"{number}. {text}"), style_map["bullet"]))
         elif line.startswith("- "):
             story.append(Paragraph(inline(line[2:]), style_map["bullet"], bulletText="-"))
         else:
@@ -205,7 +229,7 @@ def build(source: Path, target: Path, language: str, variant: str) -> None:
     markdown = source.read_text(encoding="utf-8")
     first = markdown.splitlines()[0].removeprefix("# ")
     font = "ManualCJK" if language == "ZH" else "ManualLatin"
-    bold = "ManualCJK" if language == "ZH" else "ManualLatinBold"
+    bold = "ManualCJKBold" if language == "ZH" else "ManualLatinBold"
     field = variant == "field"
     copy_label = "TELEBIRR PHONE - SIMPLE SETUP GUIDE" if field else "TELEBIRR P2P - CONTROLLED COPY"
     document = ManualDocTemplate(str(target), first, font, copy_label)

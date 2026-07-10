@@ -41,15 +41,6 @@
             android:inputType="textVisiblePassword"
             android:singleLine="true" />
 
-        <EditText
-            android:id="@+id/certificateAlias"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:hint="@string/certificate_alias_hint"
-            android:importantForAutofill="no"
-            android:inputType="text"
-            android:singleLine="true" />
-
         <Button
             android:id="@+id/activateButton"
             android:layout_width="match_parent"

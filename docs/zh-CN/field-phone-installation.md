@@ -8,12 +8,11 @@
 2. 获取 AirDroid 二维码。
 3. 获取 OpenClaw 设置代码或二维码。
 4. 获取设备网关 URL。
-5. 获取 MDM 证书别名。
-6. 获取 Telebirr Agent 激活码。
-7. 获取 SIM 1 的 ICCID。
-8. 获取 SIM 2 的 ICCID。
-9. 准备好 SIM 1 的 Telebirr PIN。
-10. 准备好 SIM 2 的 Telebirr PIN。
+5. 获取 Telebirr Agent 激活码。
+6. 获取 SIM 1 的 ICCID。
+7. 获取 SIM 2 的 ICCID。
+8. 准备好 SIM 1 的 Telebirr PIN。
+9. 准备好 SIM 2 的 Telebirr PIN。
 
 <!-- pagebreak -->
 
@@ -147,12 +146,10 @@
 2. 输入主管提供的设备网关 URL。
 3. 点击 **One-time activation code** 输入框。
 4. 输入主管提供的 Telebirr Agent 激活码。
-5. 点击 **MDM client certificate alias** 输入框。
-6. 输入主管提供的 MDM 证书别名。
-7. 点击 **Activate**。
-8. 等待屏幕显示 **Activated**。
-9. 点击 **Confirm OpenClaw is paired**。
-10. 等待进入下一个页面。
+5. 点击 **Activate**。
+6. 等待屏幕显示 **Activated**。
+7. 点击 **Confirm OpenClaw is paired**。
+8. 等待进入下一个页面。
 
 ## 10. 输入 SIM 1 的 Telebirr PIN
 

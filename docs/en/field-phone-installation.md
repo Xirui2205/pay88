@@ -8,12 +8,11 @@ Use this guide from the first **Welcome** screen on the phone.
 2. Get the AirDroid QR code.
 3. Get the OpenClaw setup code or QR code.
 4. Get the Device Gateway URL.
-5. Get the MDM certificate alias.
-6. Get the Telebirr Agent activation code.
-7. Get the SIM 1 ICCID.
-8. Get the SIM 2 ICCID.
-9. Keep the Telebirr PIN for SIM 1 with you.
-10. Keep the Telebirr PIN for SIM 2 with you.
+5. Get the Telebirr Agent activation code.
+6. Get the SIM 1 ICCID.
+7. Get the SIM 2 ICCID.
+8. Keep the Telebirr PIN for SIM 1 with you.
+9. Keep the Telebirr PIN for SIM 2 with you.
 
 <!-- pagebreak -->
 
@@ -147,12 +146,10 @@ Use this guide from the first **Welcome** screen on the phone.
 2. Type the Device Gateway URL supplied by the supervisor.
 3. Tap the **One-time activation code** field.
 4. Type the Telebirr Agent activation code supplied by the supervisor.
-5. Tap the **MDM client certificate alias** field.
-6. Type the MDM certificate alias supplied by the supervisor.
-7. Tap **Activate**.
-8. Wait until the screen shows **Activated**.
-9. Tap **Confirm OpenClaw is paired**.
-10. Wait for the next screen.
+5. Tap **Activate**.
+6. Wait until the screen shows **Activated**.
+7. Tap **Confirm OpenClaw is paired**.
+8. Wait for the next screen.
 
 ## 10. Enter the Telebirr PIN for SIM 1
 

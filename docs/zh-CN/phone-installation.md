@@ -65,8 +65,8 @@
 2. 授予本 build 实际请求的运行时权限：短信接收、电话状态/电话号码和呼叫。如 Android 或 MDM 提供通知开关，则允许通知。本 build 不请求 `READ_SMS`。
 3. 在 Accessibility 中开启 **Telebirr deterministic USSD service**。
 4. 关闭电池优化并允许自启动。
-5. 输入已批准的 Device Gateway `https://` URL、短期激活码和准确的 MDM 客户端证书别名，然后点击 **激活**。将屏幕显示的设备 ID 与 Platform Admin 核对；本机屏幕不显示地点或设备组。
-6. Agent 创建硬件密钥并领取可吊销设备证书；云端返回内容绝不能包含钱包 PIN。
+5. 输入已批准的 Device Gateway `https://` URL 和短期激活码，然后点击 **激活**。将屏幕显示的设备 ID 与 Platform Admin 核对；本机屏幕不显示地点或设备组。
+6. Agent 获取可撤销的设备令牌，并使用 Android Keystore 加密保存；云端返回内容绝不能包含钱包 PIN。
 7. 只有完成第 6.2 至 6.4 步且官方 OpenClaw 已明确显示在线后，才可打开 Telebirr Agent 引导页并在手机本地点击 **Confirm OpenClaw is paired**。该按钮不能代替实际配对或平台批准。
 8. 确认下一次签名心跳报告 `openclaw_paired=true`。这只属于验收证据，不会激活手机或任一 SIM。
 
