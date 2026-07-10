@@ -1,0 +1,9 @@
+# Supply digitalocean_token, spaces_access_id and spaces_secret_key through
+# TF_VAR_* environment variables or the CI secret store, never this file.
+environment                        = "staging"
+region                             = "fra1"
+ssh_fingerprint                    = "00:00:00:00:00:00:00:00:00:00:00:00:00:00:00:00"
+tls_certificate_name               = "staging-api-example-com"
+openclaw_tls_certificate_name = "staging-openclaw-example-com"
+admin_source_cidrs                 = ["203.0.113.10/32"]
+evidence_bucket_name               = "example-org-telebirr-staging-evidence"

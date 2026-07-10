@@ -1,0 +1,136 @@
+name: verification
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: verification-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://telebirr:telebirr@127.0.0.1:5432/telebirr?schema=public
+      TZ: Africa/Addis_Ababa
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      # API and contracts intentionally have no workspace typecheck script;
+      # compile them explicitly so root --if-present cannot skip them.
+      - run: npx tsc -p packages/contracts/tsconfig.json --noEmit
+      - run: npx tsc -p apps/api/tsconfig.json --noEmit --incremental false
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  infrastructure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: infra/terraform/digitalocean
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3
+        with:
+          terraform_version: 1.15.8
+          terraform_wrapper: false
+      - run: terraform fmt -check -recursive
+      - run: terraform init -backend=false -input=false
+      - run: terraform validate
+      - name: Build provider-backed example plan without refreshing remote state
+        env:
+          TF_VAR_digitalocean_token: dop_v1_fake_validation_token
+          TF_VAR_spaces_access_id: FAKEVALIDATIONACCESS
+          TF_VAR_spaces_secret_key: fake-validation-secret-key
+        run: >-
+          terraform plan -refresh=false -input=false -lock=false
+          -var-file=terraform.tfvars.example
+          -out=/tmp/telebirr-validation.tfplan
+      - name: Validate development Compose model
+        working-directory: .
+        run: docker compose -f infra/docker-compose.yml config --quiet
+      - name: Lint GitHub Actions workflows
+        working-directory: .
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          rhysd/actionlint:1.7.12@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667
+      - name: Lint Dockerfiles
+        working-directory: .
+        run: >-
+          docker run --rm -v "$PWD:/repo" -w /repo
+          hadolint/hadolint:v2.14.0@sha256:27086352fd5e1907ea2b934eb1023f217c5ae087992eb59fde121dce9c9ff21e
+          apps/api/Dockerfile infra/docker/web.Dockerfile
+
+  container:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            dockerfile: apps/api/Dockerfile
+            target: runtime
+            build_args: |
+              BUILD_REVISION=${{ github.sha }}
+              BUILD_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          - component: api-migration
+            dockerfile: apps/api/Dockerfile
+            target: migration
+            build_args: ''
+          - component: admin
+            dockerfile: infra/docker/web.Dockerfile
+            target: runtime
+            build_args: APP=admin
+          - component: merchant
+            dockerfile: infra/docker/web.Dockerfile
+            target: runtime
+            build_args: APP=merchant
+          - component: checkout
+            dockerfile: infra/docker/web.Dockerfile
+            target: runtime
+            build_args: APP=checkout
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          build-args: ${{ matrix.build_args }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apps/device-agent
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-java@c1e323688fd81a25caa38c78aa6df2d33d3e20d9 # v4
+        with:
+          distribution: temurin
+          java-version: 17
+          cache: gradle
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
+      - run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - run: ./gradlew testDebugUnitTest assembleDebug lintDebug --stacktrace --no-daemon

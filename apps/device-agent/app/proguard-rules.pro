@@ -1,0 +1,4 @@
+-keepattributes *Annotation*
+-keep class com.telebirr.gateway.agent.protocol.** { *; }
+-keep class com.telebirr.gateway.agent.ussd.profile.** { *; }
+-dontwarn org.conscrypt.**

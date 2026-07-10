@@ -1,0 +1,16 @@
+{
+  "name": "telebirr/p2p-sdk",
+  "description": "First-party PHP client for the Telebirr P2P Gateway",
+  "type": "library",
+  "license": "proprietary",
+  "autoload": {
+    "psr-4": {
+      "Telebirr\\P2P\\": "src/"
+    }
+  },
+  "require": {
+    "php": ">=8.1",
+    "ext-curl": "*",
+    "ext-json": "*"
+  }
+}

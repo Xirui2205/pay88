@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="24dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/activation_title"
+            android:textAppearance="@style/TextAppearance.AppCompat.Headline" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/activation_help" />
+
+        <EditText
+            android:id="@+id/gatewayUrl"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:hint="@string/gateway_url_hint"
+            android:importantForAutofill="no"
+            android:inputType="textUri"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/activationCode"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/activation_code_hint"
+            android:importantForAutofill="noExcludeDescendants"
+            android:inputType="textVisiblePassword"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/certificateAlias"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/certificate_alias_hint"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:singleLine="true" />
+
+        <Button
+            android:id="@+id/activateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/activate" />
+
+        <TextView
+            android:id="@+id/activationStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/not_activated" />
+
+        <Button
+            android:id="@+id/confirmOpenClawButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/confirm_openclaw_pairing" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginVertical="24dp"
+            android:background="#DDDDDD" />
+
+        <EditText
+            android:id="@+id/iccid"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/iccid_hint"
+            android:importantForAutofill="no"
+            android:inputType="number"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/localPin"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/pin_hint"
+            android:importantForAutofill="noExcludeDescendants"
+            android:inputType="numberPassword"
+            android:singleLine="true" />
+
+        <EditText
+            android:id="@+id/localPinConfirmation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="@string/pin_confirmation_hint"
+            android:importantForAutofill="noExcludeDescendants"
+            android:inputType="numberPassword"
+            android:singleLine="true" />
+
+        <Button
+            android:id="@+id/savePinButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/save_pin" />
+    </LinearLayout>
+</ScrollView>

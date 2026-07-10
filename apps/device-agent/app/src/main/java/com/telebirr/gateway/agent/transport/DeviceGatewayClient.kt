@@ -1,0 +1,190 @@
+package com.telebirr.gateway.agent.transport
+
+import com.telebirr.gateway.agent.AgentContainer
+import com.telebirr.gateway.agent.config.AgentConfig
+import com.telebirr.gateway.agent.protocol.SignedDeviceJobEnvelope
+import com.telebirr.gateway.agent.protocol.SignedLeaseRenewalEnvelope
+import com.telebirr.gateway.agent.protocol.JobAcceptance
+import com.telebirr.gateway.agent.storage.DecryptedSpoolEvent
+import com.telebirr.gateway.agent.ussd.profile.SignedFlowProfileEnvelope
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.decodeFromJsonElement
+import kotlinx.serialization.json.jsonArray
+import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
+import okhttp3.Request
+import okhttp3.Response
+import okhttp3.WebSocket
+import okhttp3.WebSocketListener
+import java.util.concurrent.atomic.AtomicBoolean
+
+class DeviceGatewayClient(
+    private val container: AgentContainer,
+    private val config: AgentConfig,
+    private val json: Json = Json { ignoreUnknownKeys = false },
+) : WebSocketListener() {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val http = MtlsOkHttpClientFactory.create(container.application, config.clientCertificateAlias)
+    private val connected = AtomicBoolean(false)
+    private val inbound = Channel<String>(capacity = 64)
+    @Volatile private var socket: WebSocket? = null
+
+    init {
+        scope.launch {
+            for (message in inbound) handleMessage(message)
+        }
+    }
+
+    fun connect() {
+        if (socket != null) return
+        socket = http.newWebSocket(
+            Request.Builder()
+                .url(config.websocketUrl)
+                .header("Authorization", "Bearer ${config.deviceToken}")
+                .header("X-Device-Id", config.deviceId)
+                .header("X-Device-Protocol", "1")
+                .build(),
+            this,
+        )
+    }
+
+    fun isConnected(): Boolean = connected.get()
+
+    override fun onOpen(webSocket: WebSocket, response: Response) {
+        connected.set(true)
+        send(
+            buildJsonObject {
+                put("type", "hello")
+                put("device_id", config.deviceId)
+                put("protocol_version", "1")
+            },
+        )
+    }
+
+    override fun onMessage(webSocket: WebSocket, text: String) {
+        if (inbound.trySend(text).isFailure) {
+            webSocket.close(1011, "inbound_queue_full")
+        }
+    }
+
+    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+        connected.set(false)
+        socket = null
+    }
+
+    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+        connected.set(false)
+        socket = null
+    }
+
+    fun sendHeartbeat(payload: JsonObject): Boolean = send(
+        buildJsonObject {
+            put("type", "heartbeat")
+            put("payload", payload)
+        },
+    )
+
+    fun requestLeaseRenewal(jobId: String, fencingToken: Long): Boolean = send(
+        buildJsonObject {
+            put("type", "lease_renewal_request")
+            put("job_id", jobId)
+            put("fencing_token", fencingToken)
+        },
+    )
+
+    suspend fun flushSpool(): Boolean {
+        if (!connected.get()) return false
+        val events = container.spool.pending(100)
+        if (events.isEmpty()) return true
+        val batch = SpoolBatchEncoder.encode(config.deviceId, events, json)
+        batch.oversized?.let { oversized ->
+            container.spool.isolate(oversized, "serialized_frame_too_large")
+            events.filterNot { it.id == oversized.id }.forEach { it.payload.fill(0) }
+            return true
+        }
+        val message = batch.message ?: run {
+            events.forEach { it.payload.fill(0) }
+            return true
+        }
+        val accepted = send(message)
+        val selectedIds = batch.selected.mapTo(hashSetOf(), DecryptedSpoolEvent::id)
+        events.forEach { event ->
+            event.payload.fill(0)
+            if (!accepted && event.id in selectedIds) container.spool.defer(event)
+        }
+        return accepted
+    }
+
+    private suspend fun handleMessage(raw: String) {
+        val message = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return
+        when (message["type"]?.jsonPrimitive?.content) {
+            "profile_install" -> {
+                val envelope = runCatching {
+                    json.decodeFromJsonElement<SignedFlowProfileEnvelope>(requireNotNull(message["envelope"]))
+                }.getOrNull() ?: return
+                runCatching { container.runtimeOrNull()?.profileStore?.install(envelope) }
+            }
+            "job" -> {
+                val envelope = runCatching {
+                    json.decodeFromJsonElement<SignedDeviceJobEnvelope>(requireNotNull(message["envelope"]))
+                }.getOrNull() ?: return
+                val acceptance = container.runtimeOrNull()?.executor?.submit(envelope) ?: return
+                container.spool.enqueue(
+                    "JOB_ACCEPTANCE",
+                    buildJsonObject {
+                        when (acceptance) {
+                            is JobAcceptance.Accepted -> {
+                                put("job_id", acceptance.job.jobId)
+                                put("result", "accepted")
+                            }
+                            is JobAcceptance.Duplicate -> {
+                                put("job_id", acceptance.job.jobId)
+                                put("result", "duplicate")
+                                put("state", acceptance.status.wireName)
+                            }
+                            is JobAcceptance.Rejected -> {
+                                put("result", "rejected")
+                                put("code", acceptance.code)
+                            }
+                        }
+                    }.toString().toByteArray(),
+                )
+            }
+            "lease_renewal" -> {
+                val envelope = runCatching {
+                    json.decodeFromJsonElement<SignedLeaseRenewalEnvelope>(requireNotNull(message["envelope"]))
+                }.getOrNull() ?: return
+                val runtime = container.runtimeOrNull() ?: return
+                val renewal = runtime.jobs.renewLease(envelope) ?: return
+                runtime.sessions.renewLease(renewal.jobId, renewal.leaseExpiresAtMs)
+            }
+            "spool_ack" -> {
+                val ids = message["event_ids"]?.jsonArray.orEmpty().mapNotNull {
+                    runCatching { it.jsonPrimitive.content }.getOrNull()
+                }
+                container.spool.acknowledge(ids)
+            }
+        }
+    }
+
+    private fun send(message: JsonObject): Boolean = socket?.send(message.toString()) == true
+
+    fun close() {
+        socket?.close(1000, "agent_shutdown")
+        socket = null
+        connected.set(false)
+        inbound.close()
+        scope.cancel()
+        http.dispatcher.executorService.shutdown()
+        http.connectionPool.evictAll()
+    }
+}

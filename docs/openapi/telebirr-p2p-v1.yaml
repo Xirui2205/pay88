@@ -1,0 +1,2677 @@
+openapi: 3.1.0
+info:
+  title: Telebirr P2P Gateway API
+  version: 1.0.0
+  summary: Multi-merchant ETB deposit and Telebirr payout API
+  description: |
+    Server-to-server API for ETB deposits, merchant liquidity top-ups, Telebirr
+    transfers, merchant settlement requests, approved liquidity-sweep rules,
+    merchant balances, and signed webhook administration.
+
+    Money is always represented as a positive decimal string with exactly two
+    fractional digits. Test and live keys address isolated environments. Browser
+    redirects are never proof of payment; verify server-side or consume a signed
+    webhook.
+
+    This contract covers merchant secret-key and scoped hosted-browser routes,
+    plus the merchant/platform support-case exchange. Other human portal and
+    platform-administration routes use separate session/reauthentication
+    controls documented in the portal access manuals.
+  contact:
+    name: Telebirr P2P Gateway support
+  license:
+    name: Proprietary
+    identifier: LicenseRef-Proprietary
+servers:
+  - url: '{scheme}://{gatewayHost}'
+    description: Set these variables to the assigned test or live gateway origin.
+    variables:
+      scheme:
+        default: https
+        enum: [https, http]
+        description: Use http only for local development.
+      gatewayHost:
+        default: gateway.your-domain.tld
+        description: For local development use localhost:3000.
+tags:
+  - name: Deposits
+    description: Customer payment intents and server-side verification.
+  - name: Top-ups
+    description: Merchant physical-liquidity funding intents.
+  - name: Transfers
+    description: Telebirr payouts and provider discovery.
+  - name: Settlements
+    description: Merchant-requested Telebirr settlements requiring platform approval.
+  - name: Sweep rules
+    description: Merchant-managed high-water liquidity rules requiring platform approval.
+  - name: Merchant
+    description: Merchant-level aggregate balances and indicators.
+  - name: Webhooks
+    description: Signed webhook endpoint administration and replay.
+  - name: Test simulator
+    description: Deterministic test-key-only scenario controls; never available in live mode.
+  - name: Merchant support
+    description: Merchant portal communication, evidence and advisory match proposals.
+  - name: Platform support
+    description: Platform staff support workflow; status changes never perform financial resolution.
+  - name: Hosted
+    description: Public browser resources protected by scoped opaque tokens.
+security:
+  - merchantSecretKey: []
+paths:
+  /v1/transaction/initialize:
+    post:
+      tags: [Deposits]
+      operationId: initializeTransaction
+      summary: Initialize a customer deposit
+      description: |
+        Creates one active deposit intent for a merchant customer and returns a
+        scoped hosted checkout URL. With a test key, `test_scenario` controls the
+        deterministic simulator. If `Idempotency-Key` is omitted, `tx_ref` is used.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitializeTransactionRequest'
+            examples:
+              customerDeposit:
+                value:
+                  amount: '500.00'
+                  currency: ETB
+                  tx_ref: deposit-20260710-001
+                  customer_id: player-42
+                  first_name: Abebe
+                  last_name: Kebede
+                  email: abebe@example.com
+                  phone_number: '0912345678'
+                  callback_url: https://merchant.example/callback
+                  return_url: https://merchant.example/deposit/return
+                  customization:
+                    title: Wallet deposit
+                    description: Fund your account with Telebirr
+                    logo: https://merchant.example/logo.png
+                  metadata:
+                    account_id: wallet-42
+                  test_scenario: success
+      responses:
+        '200':
+          $ref: '#/components/responses/DepositResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/transaction/verify/{tx_ref}:
+    get:
+      tags: [Deposits]
+      operationId: verifyTransaction
+      summary: Verify a deposit or merchant top-up
+      description: Returns every existing intent, including pending and expired intents. Only an unknown reference returns 404.
+      parameters:
+        - $ref: '#/components/parameters/TransactionReference'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/DepositResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/topups/initialize:
+    post:
+      tags: [Top-ups]
+      operationId: initializeMerchantTopup
+      summary: Initialize a merchant liquidity top-up
+      description: |
+        Uses the deposit matching flow but credits merchant liquidity. Verify the
+        returned `tx_ref` with the transaction verification endpoint. If
+        `Idempotency-Key` is omitted, `tx_ref` is used.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitializeTransactionRequest'
+            example:
+              amount: '10000.00'
+              currency: ETB
+              tx_ref: topup-20260710-001
+              customer_id: treasury-operator-7
+              first_name: Merchant
+              last_name: Treasury
+              phone_number: '+251911234567'
+              metadata:
+                internal_batch: LIQ-001
+              test_scenario: success
+      responses:
+        '200':
+          $ref: '#/components/responses/DepositResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/settlements:
+    post:
+      tags: [Settlements]
+      operationId: requestMerchantSettlement
+      summary: Request a merchant Telebirr settlement
+      description: |
+        Creates a settlement request for platform review. Creation does not move
+        money. After approval the gateway reserves merchant and physical
+        liquidity and dispatches one Telebirr transfer. If `Idempotency-Key` is
+        omitted, `reference` is used.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettlementRequest'
+            example:
+              reference: settlement-20260710-001
+              account_number: '0912345678'
+              expected_name: Merchant Treasury
+              amount: '25000.00'
+              currency: ETB
+              metadata:
+                requested_by: finance-team
+      responses:
+        '200':
+          $ref: '#/components/responses/SettlementResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Settlements]
+      operationId: listMerchantSettlements
+      summary: List merchant settlement requests
+      description: Returns up to the 200 most recent requests for the authenticated merchant and environment.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SettlementListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/settlements/{reference}:
+    get:
+      tags: [Settlements]
+      operationId: getMerchantSettlement
+      summary: Get a merchant settlement request
+      parameters:
+        - $ref: '#/components/parameters/SettlementReference'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SettlementResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/sweep-rules:
+    post:
+      tags: [Sweep rules]
+      operationId: createSweepRule
+      summary: Propose a high-water sweep rule
+      description: |
+        Creates a pending rule. Platform approval is required before automatic
+        execution. `group_id` is supplied by platform onboarding. If
+        `Idempotency-Key` is omitted, `name` is used.
+
+        An approved `merchant_owned` destination exits platform custody and
+        debits merchant principal and fees. An approved `platform_treasury`
+        destination must match an active preapproved treasury wallet. It is an
+        internal custody move: only the provider fee is charged to the merchant,
+        while the principal is reclassified from fleet Telebirr custody to
+        treasury custody and added to the treasury wallet's predicted balance.
+        Automatic execution is live-environment only.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SweepRuleRequest'
+            example:
+              group_id: 11111111-1111-4111-8111-111111111111
+              name: Addis collection high-water
+              destination_type: merchant_owned
+              destination_phone: '0912345678'
+              destination_name: Merchant Jumbo Account
+              high_water_balance: '75000.00'
+              target_balance: '50000.00'
+              max_per_run: '25000.00'
+              minimum_interval_seconds: 900
+      responses:
+        '200':
+          $ref: '#/components/responses/SweepRuleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    get:
+      tags: [Sweep rules]
+      operationId: listSweepRules
+      summary: List merchant sweep rules
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SweepRuleListResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/sweep-rules/{id}:
+    get:
+      tags: [Sweep rules]
+      operationId: getSweepRule
+      summary: Get a merchant sweep rule
+      parameters:
+        - $ref: '#/components/parameters/SweepRuleId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SweepRuleResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    put:
+      tags: [Sweep rules]
+      operationId: replaceSweepRule
+      summary: Replace and resubmit a sweep rule
+      description: |
+        Replaces all configurable fields, increments the version and resets the
+        rule to `pending`. Platform reapproval is required. If the header is
+        omitted, the rule ID is the idempotency key; use a new explicit key for
+        each intentional later replacement.
+      parameters:
+        - $ref: '#/components/parameters/SweepRuleId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SweepRuleRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SweepRuleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    delete:
+      tags: [Sweep rules]
+      operationId: disableSweepRule
+      summary: Disable a sweep rule
+      description: Disables future executions. Already committed transfers are not cancelled.
+      parameters:
+        - $ref: '#/components/parameters/SweepRuleId'
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReasonRequest'
+            example:
+              reason: Treasury account rotation
+      responses:
+        '200':
+          $ref: '#/components/responses/SweepRuleResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/transfers:
+    post:
+      tags: [Transfers]
+      operationId: createTransfer
+      summary: Create a Telebirr transfer
+      description: |
+        Reserves merchant ledger funds and physical fleet liquidity, then assigns
+        exactly one SIM. `bank_code` accepts numeric `855` or string `"855"`.
+        If `Idempotency-Key` is omitted, `reference` is used. A pending or unknown
+        response is not permission to create a replacement transfer.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTransferRequest'
+            examples:
+              numericBankCode:
+                value:
+                  account_number: '0912345678'
+                  expected_name: Abebe Kebede
+                  customer_id: player-42
+                  destination_type: registered
+                  amount: '500.00'
+                  currency: ETB
+                  reference: withdrawal-20260710-001
+                  bank_code: 855
+                  callback_url: https://merchant.example/callback
+                  metadata:
+                    account_id: wallet-42
+                  test_scenario: success
+              stringBankCode:
+                value:
+                  account_number: '+251912345678'
+                  expected_name: Abebe Kebede
+                  customer_id: player-42
+                  amount: '500.00'
+                  reference: withdrawal-20260710-002
+                  bank_code: '855'
+      responses:
+        '200':
+          $ref: '#/components/responses/TransferResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
+  /v1/transfers/verify/{reference}:
+    get:
+      tags: [Transfers]
+      operationId: verifyTransfer
+      summary: Verify a Telebirr transfer
+      parameters:
+        - $ref: '#/components/parameters/TransferReference'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/TransferResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/banks:
+    get:
+      tags: [Transfers]
+      operationId: listBanks
+      summary: List V1 payout providers
+      description: Returns Telebirr as the only V1 provider.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Provider list
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BanksEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/balances:
+    get:
+      tags: [Merchant]
+      operationId: getMerchantBalances
+      summary: Get merchant ledger and aggregate liquidity balances
+      description: Never exposes individual phone or SIM balances.
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Merchant balance summary
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BalancesEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/webhooks:
+    get:
+      tags: [Webhooks]
+      operationId: listWebhookEndpoints
+      summary: List registered webhook endpoints
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Webhook endpoint list; secrets are never returned
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpointListEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Webhooks]
+      operationId: registerWebhookEndpoint
+      summary: Register a webhook endpoint
+      description: |
+        The signing secret is returned by the successful registration response,
+        including an exact idempotent replay of that registration. Endpoint
+        listings never return it. Production endpoints must use HTTPS. URL
+        credentials, fragments, non-public DNS answers and redirects are not
+        accepted; every delivery attempt revalidates DNS and pins the socket to
+        the validated public address.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [url]
+              properties:
+                url:
+                  type: string
+                  format: uri
+                  maxLength: 2000
+                  description: HTTPS is mandatory in production. Credentials, fragments, and hostnames resolving to private or reserved IPv4/IPv6 addresses are rejected. Redirects are never followed.
+                  example: https://merchant.example/webhooks/telebirr
+      responses:
+        '200':
+          description: Endpoint registered; persist `data.secret` before discarding the response
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookRegistrationEnvelope'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/webhooks/{endpointId}:
+    patch:
+      tags: [Webhooks]
+      operationId: setWebhookEndpointState
+      summary: Enable or disable a webhook endpoint
+      description: Disabling an endpoint dead-letters its pending deliveries; it does not delete delivery evidence.
+      parameters:
+        - name: endpointId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [enabled]
+              properties:
+                enabled:
+                  type: boolean
+      responses:
+        '200':
+          description: Endpoint state updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookEndpointStateEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/webhooks/{endpointId}/rotate-secret:
+    post:
+      tags: [Webhooks]
+      operationId: rotateWebhookEndpointSecret
+      summary: Rotate a webhook signing secret
+      description: |
+        `Idempotency-Key` is mandatory. An exact retry returns the original
+        one-time secret; a different endpoint with the same key returns 409.
+        Store the returned secret immediately and update the receiver.
+      parameters:
+        - name: endpointId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+            minLength: 8
+            maxLength: 255
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Secret rotated; persist `data.secret` before discarding the response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSecretRotationEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/Unprocessable'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/webhooks/deliveries/{deliveryId}/replay:
+    post:
+      tags: [Webhooks]
+      operationId: replayWebhookDelivery
+      summary: Queue replay of a webhook delivery
+      parameters:
+        - name: deliveryId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Replay accepted
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcceptedEnvelope'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/test/scenarios/transfers/{reference}/complete:
+    post:
+      tags: [Test simulator]
+      operationId: completeDelayedTestTransfer
+      summary: Complete a delayed test transfer
+      description: >-
+        Test-key-only control for a transfer created with
+        `test_scenario=delay`. It never allocates a phone or moves money and is
+        forbidden with a live key. The referenced transfer must still be
+        `accepted` or `queued` on first use. The reference is the natural
+        idempotency key: an exact outcome replay returns the established result;
+        a changed outcome returns 409 `duplicate_reference_conflict`.
+      parameters:
+        - $ref: '#/components/parameters/TransferReference'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TestTransferCompletionRequest'
+            example:
+              outcome: success
+      responses:
+        '200':
+          $ref: '#/components/responses/TransferResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/portal/support/cases:
+    get:
+      tags: [Merchant support]
+      operationId: listMerchantSupportCases
+      summary: List the authenticated merchant's support cases
+      security:
+        - portalSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportEnvironment'
+        - $ref: '#/components/parameters/SupportStatusQuery'
+        - $ref: '#/components/parameters/SupportLimit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      tags: [Merchant support]
+      operationId: createMerchantSupportCase
+      summary: Open a merchant support case
+      description: Evidence references and proposed matches are advisory only and never change financial state.
+      security:
+        - portalSession: []
+      parameters:
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportCaseRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /v1/portal/support/cases/{caseId}:
+    get:
+      tags: [Merchant support]
+      operationId: getMerchantSupportCase
+      summary: Get a tenant-scoped support case and its messages
+      security:
+        - portalSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportCaseId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/portal/support/cases/{caseId}/messages:
+    post:
+      tags: [Merchant support]
+      operationId: addMerchantSupportCaseMessage
+      summary: Add merchant evidence or an advisory proposal
+      description: Closed cases reject new merchant messages until platform support reopens them.
+      security:
+        - portalSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportCaseId'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportMessageRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/support/cases:
+    get:
+      tags: [Platform support]
+      operationId: listPlatformSupportCases
+      summary: List support cases across merchants
+      security:
+        - platformSession: []
+      parameters:
+        - name: merchant_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/SupportEnvironment'
+        - $ref: '#/components/parameters/SupportStatusQuery'
+        - $ref: '#/components/parameters/SupportLimit'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /v1/admin/support/cases/{caseId}:
+    get:
+      tags: [Platform support]
+      operationId: getPlatformSupportCase
+      summary: Get a support case and its message history
+      security:
+        - platformSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportCaseId'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /v1/admin/support/cases/{caseId}/messages:
+    post:
+      tags: [Platform support]
+      operationId: addPlatformSupportCaseMessage
+      summary: Add a platform support message, evidence reference or advisory proposal
+      description: Requires a platform administrator/operator session; support and auditor roles are read-only.
+      security:
+        - platformSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportCaseId'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportMessageRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/admin/support/cases/{caseId}/status:
+    post:
+      tags: [Platform support]
+      operationId: updateSupportCaseWorkflowStatus
+      summary: Update support workflow status without performing financial resolution
+      description: >-
+        Requires a platform administrator/operator session; support and auditor
+        roles are read-only. This endpoint changes communication workflow only. It never posts a
+        ledger journal, matches a receipt, resolves a reconciliation case, or
+        retries a payout; use the separately audited financial-resolution
+        endpoints for those actions.
+      security:
+        - platformSession: []
+      parameters:
+        - $ref: '#/components/parameters/SupportCaseId'
+        - $ref: '#/components/parameters/RequestId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupportStatusRequest'
+      responses:
+        '200':
+          $ref: '#/components/responses/SupportCaseResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /v1/checkout/{tx_ref}:
+    get:
+      tags: [Hosted]
+      operationId: getHostedCheckout
+      summary: Read a scoped customer checkout
+      description: |
+        Public browser endpoint protected by the opaque scoped token contained in
+        `checkout_url`. The response includes the assigned full Telebirr number.
+        Treat the URL and token as sensitive and do not log them.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TransactionReference'
+        - $ref: '#/components/parameters/ScopedToken'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Hosted checkout state
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HostedDepositEnvelope'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/hosted/transfers/{reference}:
+    get:
+      tags: [Hosted]
+      operationId: getHostedTransferStatus
+      summary: Read scoped hosted transfer status
+      description: Public browser endpoint protected by the opaque token returned in `status_url` and `status_api_url`.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TransferReference'
+        - $ref: '#/components/parameters/ScopedToken'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          $ref: '#/components/responses/HostedTransferResponse'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /v1/hosted/transfers/{reference}/events:
+    get:
+      tags: [Hosted]
+      operationId: streamHostedTransferStatus
+      summary: Stream scoped hosted transfer status
+      description: |
+        Server-Sent Events stream for browser progress UI. Authenticate with the
+        same opaque query token used by `status_api_url`; no merchant key is
+        accepted or required. The server polls every two seconds, emits only
+        changed states as `transfer.status`, includes the terminal event, and
+        then closes. Event `data` is a hosted transfer object, not the standard
+        API envelope.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/TransferReference'
+        - $ref: '#/components/parameters/ScopedToken'
+        - $ref: '#/components/parameters/RequestId'
+      responses:
+        '200':
+          description: Server-Sent Events stream
+          headers:
+            X-Request-Id:
+              $ref: '#/components/headers/RequestId'
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: |
+                event: transfer.status
+                data: {"reference":"withdrawal-20260710-001","status":"pending","p2p_status":"provider_pending","eta_seconds":12,"merchant_name":"Example Merchant"}
+
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+webhooks:
+  merchantEvent:
+    post:
+      operationId: receiveMerchantWebhook
+      summary: Gateway event delivered to a registered merchant URL
+      description: |
+        Deliveries are at least once and may be out of order. Compute HMAC-SHA256
+        over `X-P2P-Timestamp + "." + exact_raw_body`, compare with the lowercase
+        hexadecimal value after `v1=` in `X-P2P-Signature`, reject stale
+        timestamps, and deduplicate `event_id`. Failed deliveries retry with
+        exponential backoff for up to 24 hours and can then be manually replayed.
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/WebhookTimestamp'
+        - $ref: '#/components/parameters/WebhookSignature'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WebhookEvent'
+      responses:
+        '200':
+          description: Acknowledge quickly after validation and durable enqueue
+        '400':
+          description: Invalid body or stale timestamp
+        '401':
+          description: Invalid signature
+components:
+  securitySchemes:
+    merchantSecretKey:
+      type: http
+      scheme: bearer
+      bearerFormat: sk_test_prefix.secret or sk_live_prefix.secret
+      description: Separate server-side test and live keys; never expose in browser code.
+    portalSession:
+      type: http
+      scheme: bearer
+      bearerFormat: mps_opaque_session
+      description: Individual merchant-portal session; never substitute a merchant secret API key.
+    platformSession:
+      type: http
+      scheme: bearer
+      bearerFormat: pas_opaque_session
+      description: >-
+        Individual platform-staff session. Controlled service automation may use
+        the separately audited break-glass credential described in the operator
+        runbook; it is not a human session.
+  parameters:
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: |
+        8-255 character operation key. Financial creates fall back to `tx_ref`
+        or `reference`; sweep-rule creation falls back to `name`; rule writes
+        and webhook delivery replay fall back to the resource ID; webhook
+        registration derives a stable key from the URL. Identical replays return
+        the original result and changed payloads return 409.
+      schema:
+        type: string
+        minLength: 8
+        maxLength: 255
+      example: merchant-order-20260710-001
+    RequestId:
+      name: X-Request-Id
+      in: header
+      required: false
+      description: Optional caller trace ID. Invalid values are replaced by a generated UUID.
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9._:-]{1,128}$'
+    TransactionReference:
+      name: tx_ref
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Reference'
+    TransferReference:
+      name: reference
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Reference'
+    SettlementReference:
+      name: reference
+      in: path
+      required: true
+      schema:
+        $ref: '#/components/schemas/Reference'
+    SweepRuleId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SupportCaseId:
+      name: caseId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    SupportEnvironment:
+      name: environment
+      in: query
+      required: false
+      schema:
+        type: string
+        enum: [test, live]
+    SupportStatusQuery:
+      name: status
+      in: query
+      required: false
+      schema:
+        $ref: '#/components/schemas/SupportCaseStatus'
+    SupportLimit:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 200
+        default: 100
+    ScopedToken:
+      name: token
+      in: query
+      required: true
+      description: Opaque, signed, resource-scoped browser token.
+      schema:
+        type: string
+        minLength: 16
+    WebhookTimestamp:
+      name: X-P2P-Timestamp
+      in: header
+      required: true
+      description: Unix epoch seconds used in the signed payload.
+      schema:
+        type: string
+        pattern: '^\d{10,}$'
+      example: '1783656000'
+    WebhookSignature:
+      name: X-P2P-Signature
+      in: header
+      required: true
+      description: "v1= followed by lowercase hexadecimal HMAC-SHA256."
+      schema:
+        type: string
+        pattern: '^v1=[a-f0-9]{64}$'
+      example: v1=6f1c97a56f98445e2e9d449ad070c76d704845d6b9b30a2e23f0073346518ce8
+  headers:
+    RequestId:
+      description: Request correlation identifier.
+      schema:
+        type: string
+  responses:
+    DepositResponse:
+      description: Deposit or top-up intent
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/DepositEnvelope'
+    TransferResponse:
+      description: Transfer state
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/TransferEnvelope'
+    HostedTransferResponse:
+      description: Scoped hosted transfer state, including the merchant display name
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/HostedTransferEnvelope'
+    SettlementResponse:
+      description: Merchant settlement request state
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SettlementEnvelope'
+    SettlementListResponse:
+      description: Merchant settlement request list
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SettlementListEnvelope'
+    SweepRuleResponse:
+      description: Merchant sweep rule state
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SweepRuleEnvelope'
+    SweepRuleListResponse:
+      description: Merchant sweep rule list
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SweepRuleListEnvelope'
+    SupportCaseResponse:
+      description: Tenant-scoped support case state and, on detail or mutation responses, its message history
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SupportCaseEnvelope'
+    SupportCaseListResponse:
+      description: Support case list; platform responses may include merchant identity
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/SupportCaseListEnvelope'
+    BadRequest:
+      description: Invalid request syntax or schema
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            status: error
+            message: The request payload is invalid
+            code: validation_error
+            data:
+              fieldErrors:
+                amount: [amount must be a positive decimal string with two digits]
+            request_id: 0b5fa7d4-a04d-4e7c-9b89-d8a0593d06b5
+    Unauthorized:
+      description: Missing, malformed, invalid, expired, or revoked bearer credential
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            status: error
+            message: A valid bearer credential is required
+            code: unauthorized
+            data: null
+            request_id: 0b5fa7d4-a04d-4e7c-9b89-d8a0593d06b5
+    Forbidden:
+      description: Token or environment is not authorized for this operation
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    NotFound:
+      description: Reference or resource not found
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    Conflict:
+      description: Duplicate reference conflict, active intent, or invalid state
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          examples:
+            changedPayload:
+              value:
+                status: error
+                message: The idempotency key was already used with a different payload
+                code: duplicate_reference_conflict
+                data: null
+                request_id: 0b5fa7d4-a04d-4e7c-9b89-d8a0593d06b5
+            activeIntent:
+              value:
+                status: error
+                message: Customer already has an active deposit
+                code: active_intent_exists
+                data:
+                  tx_ref: existing-deposit-001
+                request_id: 0b5fa7d4-a04d-4e7c-9b89-d8a0593d06b5
+    Unprocessable:
+      description: Semantically invalid amount or merchant configuration constraint
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    RateLimited:
+      description: Request admission limit exceeded
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    InternalError:
+      description: Unexpected server error
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+    ServiceUnavailable:
+      description: No eligible physical Telebirr liquidity is currently available
+      headers:
+        X-Request-Id:
+          $ref: '#/components/headers/RequestId'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorEnvelope'
+          example:
+            status: error
+            message: No eligible wallet can fund this transfer
+            code: no_physical_liquidity
+            data: null
+            request_id: 0b5fa7d4-a04d-4e7c-9b89-d8a0593d06b5
+  schemas:
+    Reference:
+      type: string
+      minLength: 1
+      maxLength: 128
+      pattern: '^[A-Za-z0-9._:-]+$'
+    EtbAmount:
+      type: string
+      pattern: '^(0|[1-9]\d*)\.\d{2}$'
+      not:
+        const: '0.00'
+      description: Positive ETB decimal string with exactly two fractional digits.
+      examples: ['500.00']
+    EtbValue:
+      type: string
+      pattern: '^(0|[1-9]\d*)\.\d{2}$'
+      description: Non-negative ETB decimal string with exactly two fractional digits.
+      examples: ['0.00', '500.00']
+    EtbSignedValue:
+      type: string
+      pattern: '^-?(0|[1-9]\d*)\.\d{2}$'
+      description: Signed ETB ledger value with exactly two fractional digits.
+      examples: ['500.00', '-1.25']
+    EthiopianPhoneInput:
+      type: string
+      description: Ethiopian mobile number; accepted forms include 0912345678, 912345678, 251912345678, and +251912345678.
+      examples: ['0912345678']
+    Metadata:
+      type: object
+      additionalProperties: true
+      description: Merchant-defined JSON object returned as contextual data where supported.
+    Customization:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        description:
+          type: string
+          maxLength: 500
+        logo:
+          type: string
+          format: uri
+          pattern: '^https?://'
+    InitializeTransactionRequest:
+      type: object
+      additionalProperties: false
+      required: [amount, tx_ref, customer_id, first_name, phone_number]
+      properties:
+        amount:
+          $ref: '#/components/schemas/EtbAmount'
+        currency:
+          type: string
+          const: ETB
+          default: ETB
+        tx_ref:
+          $ref: '#/components/schemas/Reference'
+        customer_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        first_name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        last_name:
+          type: string
+          maxLength: 100
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        phone_number:
+          $ref: '#/components/schemas/EthiopianPhoneInput'
+        callback_url:
+          type: string
+          format: uri
+          pattern: '^https?://'
+          description: Compatibility/advisory field. V1 does not guarantee direct delivery to this URL; registered signed webhooks and verify are authoritative.
+        return_url:
+          type: string
+          format: uri
+          pattern: '^https?://'
+          description: Browser navigation only; never proof of payment.
+        customization:
+          $ref: '#/components/schemas/Customization'
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        test_scenario:
+          type: string
+          enum: [success, wrong_amount, late, duplicate, ambiguous]
+          description: Accepted only as simulator input with a test key.
+    CreateTransferRequest:
+      type: object
+      additionalProperties: false
+      required: [account_number, expected_name, customer_id, amount, reference, bank_code]
+      properties:
+        account_number:
+          $ref: '#/components/schemas/EthiopianPhoneInput'
+        expected_name:
+          type: string
+          minLength: 2
+          maxLength: 200
+        customer_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        destination_type:
+          type: string
+          enum: [registered, alternate]
+          default: registered
+          description: >-
+            `registered` is the default merchant assertion. `alternate` requires
+            a platform-approved merchant setting; otherwise the API returns 403
+            `alternate_destination_disabled`.
+        amount:
+          $ref: '#/components/schemas/EtbAmount'
+        currency:
+          type: string
+          const: ETB
+          default: ETB
+        reference:
+          $ref: '#/components/schemas/Reference'
+        bank_code:
+          oneOf:
+            - type: string
+              const: '855'
+            - type: integer
+              const: 855
+        callback_url:
+          type: string
+          format: uri
+          pattern: '^https?://'
+          description: Compatibility/advisory field. V1 does not guarantee direct delivery to this URL; registered signed webhooks and verify are authoritative.
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+        test_scenario:
+          type: string
+          enum: [success, explicit_failure, delay, unknown]
+          description: Accepted only as simulator input with a test key.
+    CreateSettlementRequest:
+      type: object
+      additionalProperties: false
+      required: [reference, account_number, expected_name, amount]
+      properties:
+        reference:
+          $ref: '#/components/schemas/Reference'
+        account_number:
+          $ref: '#/components/schemas/EthiopianPhoneInput'
+        expected_name:
+          type: string
+          minLength: 2
+          maxLength: 200
+        amount:
+          $ref: '#/components/schemas/EtbAmount'
+        currency:
+          type: string
+          const: ETB
+          default: ETB
+        metadata:
+          $ref: '#/components/schemas/Metadata'
+    TestTransferCompletionRequest:
+      type: object
+      additionalProperties: false
+      required: [outcome]
+      properties:
+        outcome:
+          type: string
+          enum: [success, failed, unknown]
+    SweepRuleRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - group_id
+        - name
+        - destination_type
+        - destination_phone
+        - destination_name
+        - high_water_balance
+        - target_balance
+        - max_per_run
+      properties:
+        group_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+          minLength: 2
+          maxLength: 120
+        destination_type:
+          type: string
+          enum: [platform_treasury, merchant_owned]
+        destination_phone:
+          $ref: '#/components/schemas/EthiopianPhoneInput'
+        destination_name:
+          type: string
+          minLength: 2
+          maxLength: 200
+        high_water_balance:
+          $ref: '#/components/schemas/EtbAmount'
+        target_balance:
+          allOf:
+            - $ref: '#/components/schemas/EtbAmount'
+          description: Must be less than `high_water_balance`.
+        max_per_run:
+          $ref: '#/components/schemas/EtbAmount'
+        minimum_interval_seconds:
+          type: integer
+          minimum: 60
+          maximum: 86400
+          default: 900
+    ReasonRequest:
+      type: object
+      additionalProperties: false
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          minLength: 5
+          maxLength: 1000
+    CoarseStatus:
+      type: string
+      enum: [pending, success, failed]
+    DepositStatus:
+      type: string
+      enum: [awaiting_payment, late_grace, matching, manual_review, success, expired, failed]
+    TransferStatus:
+      type: string
+      enum: [accepted, queued, device_assigned, device_started, committed, provider_pending, success, failed, unknown, manual_review, cancelled]
+    SettlementStatus:
+      type: string
+      enum: [requested, approved, rejected, dispatched, success, failed, unknown, manual_review]
+    SweepRuleStatus:
+      type: string
+      enum: [pending, approved, rejected, disabled]
+    SweepExecutionStatus:
+      type: string
+      enum: [queued, device_started, committed, provider_pending, success, failed, unknown, manual_review]
+    WebhookP2pStatus:
+      type: string
+      enum:
+        - awaiting_payment
+        - late_grace
+        - matching
+        - manual_review
+        - success
+        - expired
+        - failed
+        - accepted
+        - queued
+        - device_assigned
+        - device_started
+        - committed
+        - provider_pending
+        - unknown
+        - cancelled
+        - requested
+        - approved
+        - rejected
+        - dispatched
+    Deposit:
+      type: object
+      required:
+        - tx_ref
+        - amount
+        - credited_amount
+        - currency
+        - status
+        - p2p_status
+        - checkout_url
+        - assigned_number_masked
+        - receiver_name
+        - expires_at
+        - late_grace_ends_at
+        - created_at
+        - countdown_seconds
+        - late_grace_seconds
+        - provider_transaction_id
+      properties:
+        tx_ref:
+          $ref: '#/components/schemas/Reference'
+        amount:
+          $ref: '#/components/schemas/EtbAmount'
+        credited_amount:
+          oneOf:
+            - $ref: '#/components/schemas/EtbAmount'
+            - type: 'null'
+        currency:
+          type: string
+          const: ETB
+        status:
+          $ref: '#/components/schemas/CoarseStatus'
+        p2p_status:
+          $ref: '#/components/schemas/DepositStatus'
+        checkout_url:
+          type: string
+          format: uri
+        assigned_number_masked:
+          type: string
+          example: +251900****00
+        receiver_name:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        late_grace_ends_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+        countdown_seconds:
+          type: integer
+          minimum: 0
+          description: Configured on-time checkout window in seconds.
+        late_grace_seconds:
+          type: integer
+          minimum: 0
+          description: Additional deterministic late-matching window in seconds.
+        provider_transaction_id:
+          oneOf:
+            - type: string
+            - type: 'null'
+    HostedDeposit:
+      allOf:
+        - $ref: '#/components/schemas/Deposit'
+        - type: object
+          required: [assigned_phone_number, return_url, merchant_name]
+          properties:
+            assigned_phone_number:
+              type: string
+              example: '+251900000000'
+            return_url:
+              oneOf:
+                - type: string
+                  format: uri
+                - type: 'null'
+            merchant_name:
+              type: string
+              description: Merchant display name shown by the hosted checkout.
+    Transfer:
+      type: object
+      required:
+        - reference
+        - amount
+        - provider_fee
+        - provider_vat
+        - gateway_fee
+        - currency
+        - status
+        - p2p_status
+        - account_number_masked
+        - expected_name
+        - provider_transaction_id
+        - created_at
+        - eta_seconds
+        - estimated_completion_at
+        - status_url
+        - status_api_url
+      properties:
+        reference:
+          $ref: '#/components/schemas/Reference'
+        amount:
+          $ref: '#/components/schemas/EtbAmount'
+        provider_fee:
+          oneOf:
+            - $ref: '#/components/schemas/EtbValue'
+            - type: 'null'
+        provider_vat:
+          oneOf:
+            - $ref: '#/components/schemas/EtbValue'
+            - type: 'null'
+        gateway_fee:
+          $ref: '#/components/schemas/EtbValue'
+        currency:
+          type: string
+          const: ETB
+        status:
+          $ref: '#/components/schemas/CoarseStatus'
+        p2p_status:
+          $ref: '#/components/schemas/TransferStatus'
+        account_number_masked:
+          type: string
+        expected_name:
+          type: string
+        provider_transaction_id:
+          oneOf:
+            - type: string
+            - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        eta_seconds:
+          type: integer
+          minimum: 0
+          description: Queue-aware estimate clamped to zero after the estimate time passes.
+        estimated_completion_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        status_url:
+          type: string
+          format: uri
+          description: Hosted browser progress URL containing a scoped token.
+        status_api_url:
+          type: string
+          format: uri
+          description: Hosted status API URL containing a scoped token.
+    HostedTransfer:
+      allOf:
+        - $ref: '#/components/schemas/Transfer'
+        - type: object
+          required: [merchant_name]
+          properties:
+            merchant_name:
+              type: string
+              description: Merchant display name shown by the hosted progress UI.
+    Settlement:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - reference
+        - amount
+        - currency
+        - destination_phone_masked
+        - expected_name
+        - status
+        - transfer_reference
+        - review_reason
+        - requested_at
+        - reviewed_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        reference:
+          $ref: '#/components/schemas/Reference'
+        amount:
+          $ref: '#/components/schemas/EtbAmount'
+        currency:
+          type: string
+          const: ETB
+        destination_phone_masked:
+          type: string
+          example: +251911****78
+        expected_name:
+          type: string
+        status:
+          $ref: '#/components/schemas/SettlementStatus'
+        transfer_reference:
+          oneOf:
+            - type: string
+            - type: 'null'
+          description: Internal transfer reference assigned after platform approval.
+        review_reason:
+          oneOf:
+            - type: string
+            - type: 'null'
+        requested_at:
+          type: string
+          format: date-time
+        reviewed_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+    SweepRule:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - name
+        - group_id
+        - environment
+        - status
+        - enabled
+        - version
+        - destination_type
+        - destination_phone
+        - destination_name
+        - high_water_balance
+        - target_balance
+        - max_per_run
+        - minimum_interval_seconds
+        - approval_reason
+        - approved_at
+        - last_executed_at
+        - created_at
+        - updated_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        group_id:
+          type: string
+          format: uuid
+        environment:
+          type: string
+          enum: [test, live]
+        status:
+          $ref: '#/components/schemas/SweepRuleStatus'
+        enabled:
+          type: boolean
+        version:
+          type: integer
+          minimum: 1
+        destination_type:
+          type: string
+          enum: [platform_treasury, merchant_owned]
+        destination_phone:
+          type: string
+          description: Normalized `+2519...` destination configured by the merchant.
+        destination_name:
+          type: string
+        high_water_balance:
+          $ref: '#/components/schemas/EtbAmount'
+        target_balance:
+          $ref: '#/components/schemas/EtbAmount'
+        max_per_run:
+          $ref: '#/components/schemas/EtbAmount'
+        minimum_interval_seconds:
+          type: integer
+        approval_reason:
+          oneOf:
+            - type: string
+            - type: 'null'
+        approved_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        last_executed_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+    SweepEventData:
+      type: object
+      additionalProperties: true
+      required: [reference, status, p2p_status]
+      description: Payload shape used by `sweep.updated`; fields become available as an execution is dispatched and reconciled.
+      properties:
+        reference:
+          type: string
+        rule_id:
+          type: string
+          format: uuid
+        execution_id:
+          type: string
+          format: uuid
+        transfer_reference:
+          type: string
+        status:
+          $ref: '#/components/schemas/CoarseStatus'
+        p2p_status:
+          $ref: '#/components/schemas/SweepExecutionStatus'
+    Bank:
+      type: object
+      additionalProperties: false
+      required: [id, code, name, currency, account_type]
+      properties:
+        id:
+          type: integer
+          const: 855
+        code:
+          type: string
+          const: '855'
+        name:
+          type: string
+          const: Telebirr
+        currency:
+          type: string
+          const: ETB
+        account_type:
+          type: string
+          const: mobile_wallet
+    MerchantBalances:
+      type: object
+      additionalProperties: false
+      required: [currency, available, reserved, pending, physical_liquidity]
+      properties:
+        currency:
+          type: string
+          const: ETB
+        available:
+          $ref: '#/components/schemas/EtbSignedValue'
+          description: >-
+            Normally non-negative. Authoritative post-commit provider-fee
+            overruns or contradictory late-success evidence can expose a
+            negative merchant debt instead of hiding the real provider outflow.
+        reserved:
+          $ref: '#/components/schemas/EtbValue'
+        pending:
+          $ref: '#/components/schemas/EtbValue'
+        physical_liquidity:
+          type: object
+          additionalProperties: false
+          required: [available, status]
+          properties:
+            available:
+              $ref: '#/components/schemas/EtbValue'
+            status:
+              type: string
+              const: aggregate_only
+    SupportCaseStatus:
+      type: string
+      enum: [open, investigating, awaiting_merchant, resolved, closed]
+    SupportCaseCategory:
+      type: string
+      enum: [transaction_match, withdrawal_outcome, topup, settlement, webhook, api, other]
+    SupportProposedMatch:
+      type: object
+      additionalProperties: false
+      required: [kind, reference]
+      properties:
+        kind:
+          type: string
+          enum: [deposit_intent, incoming_receipt, withdrawal, provider_transaction]
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 128
+        explanation:
+          type: string
+          minLength: 2
+          maxLength: 1000
+      description: Advisory proposal only; it never matches, credits, retries, or otherwise changes financial state.
+    SupportMessageRequest:
+      type: object
+      additionalProperties: false
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        evidence_reference:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Reference to previously uploaded or otherwise controlled evidence; not executable content.
+        proposed_match:
+          $ref: '#/components/schemas/SupportProposedMatch'
+    CreateSupportCaseRequest:
+      type: object
+      additionalProperties: false
+      required: [category, subject, message]
+      properties:
+        environment:
+          type: string
+          enum: [test, live]
+          default: live
+        category:
+          $ref: '#/components/schemas/SupportCaseCategory'
+        subject:
+          type: string
+          minLength: 3
+          maxLength: 200
+        reference:
+          type: string
+          minLength: 1
+          maxLength: 128
+        message:
+          type: string
+          minLength: 2
+          maxLength: 5000
+        evidence_reference:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Reference to previously uploaded or otherwise controlled evidence; not executable content.
+        proposed_match:
+          $ref: '#/components/schemas/SupportProposedMatch'
+    SupportStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status, reason]
+      properties:
+        status:
+          $ref: '#/components/schemas/SupportCaseStatus'
+        reason:
+          type: string
+          minLength: 10
+          maxLength: 1000
+    SupportPerson:
+      type: object
+      additionalProperties: false
+      required: [id, display_name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        display_name:
+          type: string
+    SupportAuthor:
+      type: object
+      additionalProperties: false
+      required: [type, id, display_name]
+      properties:
+        type:
+          type: string
+          enum: [merchant_user, platform_staff, former_user]
+        id:
+          oneOf:
+            - type: string
+              format: uuid
+            - type: 'null'
+        display_name:
+          type: string
+    SupportMerchant:
+      type: object
+      additionalProperties: false
+      required: [id, slug, name]
+      properties:
+        id:
+          type: string
+          format: uuid
+        slug:
+          type: string
+        name:
+          type: string
+    SupportMessage:
+      type: object
+      additionalProperties: false
+      required: [id, body, evidence_reference, proposed_match, author, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        body:
+          type: string
+        evidence_reference:
+          oneOf:
+            - type: string
+            - type: 'null'
+        proposed_match:
+          oneOf:
+            - $ref: '#/components/schemas/SupportProposedMatch'
+            - type: 'null'
+        author:
+          $ref: '#/components/schemas/SupportAuthor'
+        created_at:
+          type: string
+          format: date-time
+    SupportCase:
+      type: object
+      additionalProperties: false
+      required:
+        - id
+        - environment
+        - category
+        - subject
+        - reference
+        - status
+        - workflow_note
+        - created_by
+        - assigned_to
+        - message_count
+        - created_at
+        - updated_at
+        - resolved_at
+        - financial_resolution_performed
+      properties:
+        id:
+          type: string
+          format: uuid
+        merchant:
+          $ref: '#/components/schemas/SupportMerchant'
+          description: Included for platform staff; omitted from merchant-scoped responses.
+        environment:
+          type: string
+          enum: [test, live]
+        category:
+          $ref: '#/components/schemas/SupportCaseCategory'
+        subject:
+          type: string
+        reference:
+          oneOf:
+            - type: string
+            - type: 'null'
+        status:
+          $ref: '#/components/schemas/SupportCaseStatus'
+        workflow_note:
+          oneOf:
+            - type: string
+            - type: 'null'
+        created_by:
+          oneOf:
+            - $ref: '#/components/schemas/SupportPerson'
+            - type: 'null'
+        assigned_to:
+          oneOf:
+            - $ref: '#/components/schemas/SupportPerson'
+            - type: 'null'
+        message_count:
+          type: integer
+          minimum: 0
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportMessage'
+          description: Included on detail and mutation responses; omitted from list responses.
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        resolved_at:
+          oneOf:
+            - type: string
+              format: date-time
+            - type: 'null'
+        financial_resolution_performed:
+          type: boolean
+          const: false
+          description: Always false; support workflow endpoints never perform a financial resolution.
+    WebhookEndpoint:
+      type: object
+      required: [id, url, enabled, created_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+    WebhookRegistration:
+      allOf:
+        - $ref: '#/components/schemas/WebhookEndpoint'
+        - type: object
+          required: [secret]
+          properties:
+            secret:
+              type: string
+              pattern: '^whsec_[A-Za-z0-9_-]+$'
+              description: Returned by registration and an exact idempotent replay; never returned by endpoint listing. Store it encrypted.
+    WebhookEndpointState:
+      type: object
+      additionalProperties: false
+      required: [id, url, enabled, updated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        enabled:
+          type: boolean
+        updated_at:
+          type: string
+          format: date-time
+    WebhookSecretRotation:
+      type: object
+      additionalProperties: false
+      required: [id, secret, rotated_at]
+      properties:
+        id:
+          type: string
+          format: uuid
+        secret:
+          type: string
+          pattern: '^whsec_[A-Za-z0-9_-]+$'
+        rotated_at:
+          type: string
+          format: date-time
+    WebhookEvent:
+      type: object
+      additionalProperties: false
+      required: [event_id, schema_version, event_type, attempt, created_at, merchant_id, environment, reference, status, p2p_status, data]
+      properties:
+        event_id:
+          type: string
+          format: uuid
+        schema_version:
+          type: string
+          const: '1.0'
+        event_type:
+          type: string
+          enum: [deposit.updated, transfer.updated, settlement.updated, topup.updated, sweep.updated]
+        attempt:
+          type: integer
+          minimum: 1
+        created_at:
+          type: string
+          format: date-time
+        merchant_id:
+          type: string
+          format: uuid
+        environment:
+          type: string
+          enum: [test, live]
+        reference:
+          type: string
+        status:
+          $ref: '#/components/schemas/CoarseStatus'
+        p2p_status:
+          $ref: '#/components/schemas/WebhookP2pStatus'
+        data:
+          anyOf:
+            - $ref: '#/components/schemas/SweepEventData'
+            - type: object
+              additionalProperties: true
+          description: Event-specific payload. `sweep.updated` includes the rule ID and linked transfer reference; consumers should still verify the resource before applying value.
+    ErrorEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: error
+        message:
+          type: string
+        code:
+          type: string
+          enum:
+            - validation_error
+            - unauthorized
+            - forbidden
+            - not_found
+            - duplicate_reference_conflict
+            - active_intent_exists
+            - insufficient_merchant_balance
+            - no_physical_liquidity
+            - alternate_destination_disabled
+            - invalid_webhook_url
+            - support_case_not_found
+            - support_case_closed
+            - invalid_support_case_transition
+            - support_case_changed
+            - rate_limited
+            - invalid_state
+            - http_error
+            - internal_error
+        data:
+          description: Optional machine-readable details; null when no details are available.
+        request_id:
+          type: string
+    DepositEnvelope:
+      $ref: '#/components/schemas/SuccessDepositEnvelope'
+    SuccessDepositEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/Deposit'
+        request_id:
+          type: string
+    HostedDepositEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/HostedDeposit'
+        request_id:
+          type: string
+    TransferEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/Transfer'
+        request_id:
+          type: string
+    HostedTransferEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/HostedTransfer'
+        request_id:
+          type: string
+    SettlementEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/Settlement'
+        request_id:
+          type: string
+    SettlementListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Settlement'
+        request_id:
+          type: string
+    SweepRuleEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/SweepRule'
+        request_id:
+          type: string
+    SweepRuleListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SweepRule'
+        request_id:
+          type: string
+    SupportCaseEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/SupportCase'
+        request_id:
+          type: string
+    SupportCaseListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportCase'
+        request_id:
+          type: string
+    BanksEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Bank'
+        request_id:
+          type: string
+    BalancesEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/MerchantBalances'
+        request_id:
+          type: string
+    WebhookEndpointListEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/WebhookEndpoint'
+        request_id:
+          type: string
+    WebhookRegistrationEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/WebhookRegistration'
+        request_id:
+          type: string
+    WebhookEndpointStateEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/WebhookEndpointState'
+        request_id:
+          type: string
+    WebhookSecretRotationEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          $ref: '#/components/schemas/WebhookSecretRotation'
+        request_id:
+          type: string
+    AcceptedEnvelope:
+      type: object
+      additionalProperties: false
+      required: [status, message, code, data, request_id]
+      properties:
+        status:
+          type: string
+          const: success
+        message:
+          type: string
+        code:
+          type: string
+          const: ok
+        data:
+          type: object
+          additionalProperties: false
+          required: [accepted]
+          properties:
+            accepted:
+              type: boolean
+              const: true
+        request_id:
+          type: string

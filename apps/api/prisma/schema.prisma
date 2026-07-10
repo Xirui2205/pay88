@@ -1,0 +1,1064 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum RuntimeEnvironment {
+  test
+  live
+}
+
+enum MerchantStatus {
+  active
+  suspended
+  disabled
+}
+
+enum DeviceStatus {
+  pending
+  qualifying
+  online
+  degraded
+  offline
+  quarantined
+  retired
+}
+
+enum SimStatus {
+  pending
+  active
+  payout_stale
+  quarantined
+  disabled
+}
+
+enum DepositStatus {
+  awaiting_payment
+  late_grace
+  matching
+  manual_review
+  success
+  expired
+  failed
+}
+
+enum TransferStatus {
+  accepted
+  queued
+  device_assigned
+  device_started
+  committed
+  provider_pending
+  success
+  failed
+  unknown
+  manual_review
+  cancelled
+}
+
+enum DeviceJobType {
+  customer_withdrawal
+  unknown_reconciliation
+  merchant_settlement
+  emergency_liquidity_move
+  automatic_sweep
+  balance_query
+}
+
+enum DeviceJobState {
+  queued
+  leased
+  device_started
+  committed
+  provider_pending
+  succeeded
+  failed
+  unknown
+  cancelled
+}
+
+enum LedgerAccountType {
+  asset
+  liability
+  revenue
+  expense
+  suspense
+}
+
+enum ReconciliationStatus {
+  open
+  proposed
+  resolved
+  rejected
+}
+
+enum FinancialMode {
+  merchant_debit
+  internal_move
+}
+
+enum SettlementStatus {
+  requested
+  approved
+  rejected
+  dispatched
+  success
+  failed
+  unknown
+  manual_review
+}
+
+enum SweepRuleStatus {
+  pending
+  approved
+  rejected
+  disabled
+}
+
+enum SweepDestinationType {
+  platform_treasury
+  merchant_owned
+}
+
+enum SweepExecutionStatus {
+  queued
+  device_started
+  committed
+  provider_pending
+  success
+  failed
+  unknown
+  manual_review
+}
+
+enum MerchantUserRole {
+  owner
+  admin
+  support
+}
+
+enum PlatformStaffRole {
+  admin
+  operator
+  support
+  auditor
+}
+
+enum HumanUserStatus {
+  active
+  disabled
+}
+
+enum TreasuryWalletStatus {
+  pending
+  active
+  disabled
+  quarantined
+}
+
+enum ConfigurationChangeStatus {
+  pending
+  approved
+  rejected
+}
+
+enum OperationalAlertStatus {
+  open
+  acknowledged
+  resolved
+}
+
+enum AlertDeliveryStatus {
+  pending
+  processing
+  delivered
+  failed
+}
+
+enum QualificationRunStatus {
+  pending
+  running
+  passed
+  failed
+  approved
+  rejected
+}
+
+enum QualificationCheckStatus {
+  pending
+  passed
+  failed
+}
+
+enum SupportCaseStatus {
+  open
+  investigating
+  awaiting_merchant
+  resolved
+  closed
+}
+
+enum SupportCaseCategory {
+  transaction_match
+  withdrawal_outcome
+  topup
+  settlement
+  webhook
+  api
+  other
+}
+
+model Merchant {
+  id                 String                @id @default(uuid()) @db.Uuid
+  slug               String                @unique @db.VarChar(80)
+  name               String                @db.VarChar(200)
+  status             MerchantStatus        @default(active)
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+  config             MerchantConfig?
+  apiKeys            ApiKey[]
+  idempotencyRecords IdempotencyRecord[]
+  deposits           DepositIntent[]
+  transfers          Transfer[]
+  ledgerAccounts     LedgerAccount[]
+  webhookEndpoints   WebhookEndpoint[]
+  groupPolicies      MerchantGroupPolicy[]
+  auditLogs          AuditLog[]
+  settlements        SettlementRequest[]
+  sweepRules         SweepRule[]
+  users              MerchantUser[]
+  invitations        MerchantInvitation[]
+  treasuryWallets    TreasuryWallet[]
+  supportCases       MerchantSupportCase[]
+}
+
+model MerchantUser {
+  id              String                @id @default(uuid()) @db.Uuid
+  merchantId      String                @db.Uuid
+  email           String                @db.VarChar(320)
+  displayName     String                @db.VarChar(160)
+  passwordHash    String                @db.VarChar(255)
+  role            MerchantUserRole
+  status          HumanUserStatus       @default(active)
+  lastLoginAt     DateTime?
+  createdAt       DateTime              @default(now())
+  updatedAt       DateTime              @updatedAt
+  merchant        Merchant              @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  sessions        MerchantSession[]
+  invitations     MerchantInvitation[]  @relation("MerchantInvitationInviter")
+  supportCases    MerchantSupportCase[] @relation("SupportCaseCreator")
+  supportMessages SupportCaseMessage[]  @relation("SupportMessageMerchantAuthor")
+
+  @@unique([merchantId, email])
+  @@index([email, status])
+}
+
+model MerchantInvitation {
+  id          String           @id @default(uuid()) @db.Uuid
+  merchantId  String           @db.Uuid
+  email       String           @db.VarChar(320)
+  role        MerchantUserRole
+  tokenHash   String           @unique @db.VarChar(64)
+  invitedById String?          @db.Uuid
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime         @default(now())
+  merchant    Merchant         @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  invitedBy   MerchantUser?    @relation("MerchantInvitationInviter", fields: [invitedById], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, email, expiresAt])
+}
+
+model MerchantSession {
+  id         String       @id @default(uuid()) @db.Uuid
+  userId     String       @db.Uuid
+  tokenHash  String       @unique @db.VarChar(64)
+  expiresAt  DateTime
+  lastSeenAt DateTime     @default(now())
+  revokedAt  DateTime?
+  ipAddress  String?      @db.VarChar(64)
+  userAgent  String?      @db.VarChar(500)
+  createdAt  DateTime     @default(now())
+  user       MerchantUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PlatformStaff {
+  id                   String                @id @default(uuid()) @db.Uuid
+  email                String                @unique @db.VarChar(320)
+  displayName          String                @db.VarChar(160)
+  passwordHash         String                @db.VarChar(255)
+  role                 PlatformStaffRole
+  status               HumanUserStatus       @default(active)
+  lastLoginAt          DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  sessions             PlatformSession[]
+  assignedSupportCases MerchantSupportCase[] @relation("SupportCaseAssignee")
+  supportMessages      SupportCaseMessage[]  @relation("SupportMessagePlatformAuthor")
+}
+
+model PlatformSession {
+  id           String                @id @default(uuid()) @db.Uuid
+  staffId      String                @db.Uuid
+  tokenHash    String                @unique @db.VarChar(64)
+  expiresAt    DateTime
+  lastSeenAt   DateTime              @default(now())
+  revokedAt    DateTime?
+  ipAddress    String?               @db.VarChar(64)
+  userAgent    String?               @db.VarChar(500)
+  createdAt    DateTime              @default(now())
+  staff        PlatformStaff         @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  reauthTokens PlatformReauthToken[]
+
+  @@index([staffId, expiresAt])
+}
+
+model PlatformReauthToken {
+  id        String          @id @default(uuid()) @db.Uuid
+  sessionId String          @db.Uuid
+  tokenHash String          @unique @db.VarChar(64)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime        @default(now())
+  session   PlatformSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, expiresAt])
+}
+
+model PlatformSetting {
+  key       String   @id @db.VarChar(100)
+  value     Json
+  version   Int      @default(1)
+  updatedBy String   @db.VarChar(128)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model TreasuryWallet {
+  id                    String               @id @default(uuid()) @db.Uuid
+  merchantId            String?              @db.Uuid
+  environment           RuntimeEnvironment   @default(live)
+  phoneNumber           String               @db.VarChar(16)
+  accountName           String               @db.VarChar(200)
+  status                TreasuryWalletStatus @default(pending)
+  predictedBalanceMinor BigInt               @default(0)
+  confirmedBalanceMinor BigInt?
+  lastConfirmedAt       DateTime?
+  approvedBy            String?              @db.VarChar(128)
+  approvedAt            DateTime?
+  createdAt             DateTime             @default(now())
+  updatedAt             DateTime             @updatedAt
+  merchant              Merchant?            @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@unique([environment, phoneNumber])
+  @@index([status, environment])
+}
+
+model ConfigurationChange {
+  id           String                    @id @default(uuid()) @db.Uuid
+  scopeType    String                    @db.VarChar(40)
+  scopeId      String                    @db.VarChar(128)
+  version      Int
+  proposed     Json
+  status       ConfigurationChangeStatus @default(pending)
+  proposedBy   String                    @db.VarChar(128)
+  reviewedBy   String?                   @db.VarChar(128)
+  reviewReason String?                   @db.VarChar(1000)
+  reviewedAt   DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  @@unique([scopeType, scopeId, version])
+  @@index([status, createdAt])
+}
+
+model OperationalAlert {
+  id             String                 @id @default(uuid()) @db.Uuid
+  type           String                 @db.VarChar(80)
+  severity       String                 @default("warning") @db.VarChar(20)
+  status         OperationalAlertStatus @default(open)
+  message        String                 @db.VarChar(1000)
+  dedupeKey      String                 @db.VarChar(64)
+  metadata       Json
+  acknowledgedBy String?                @db.VarChar(128)
+  acknowledgedAt DateTime?
+  resolvedBy     String?                @db.VarChar(128)
+  resolvedAt     DateTime?
+  createdAt      DateTime               @default(now())
+  updatedAt      DateTime               @updatedAt
+  deliveries     AlertDelivery[]
+
+  @@index([status, createdAt])
+  @@index([dedupeKey, createdAt])
+}
+
+model AlertDelivery {
+  id             String              @id @default(uuid()) @db.Uuid
+  alertId        String              @db.Uuid
+  channel        String              @db.VarChar(32)
+  destination    String              @db.VarChar(255)
+  status         AlertDeliveryStatus @default(pending)
+  attempt        Int                 @default(0)
+  nextAttemptAt  DateTime            @default(now())
+  leaseToken     String?             @db.VarChar(64)
+  leaseExpiresAt DateTime?
+  lastError      String?             @db.VarChar(1000)
+  deliveredAt    DateTime?
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+  alert          OperationalAlert    @relation(fields: [alertId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+}
+
+model MerchantConfig {
+  merchantId                    String   @id @db.Uuid
+  allowAlternateWithdrawalPhone Boolean  @default(false)
+  depositMinimumMinor           BigInt   @default(1000)
+  depositMaximumMinor           BigInt   @default(500000000)
+  wrongAmountToleranceMinor     BigInt   @default(0)
+  depositCountdownSeconds       Int      @default(600)
+  depositLateGraceSeconds       Int      @default(1800)
+  reserveProviderFeeMinor       BigInt   @default(10000)
+  gatewayFeeFlatMinor           BigInt   @default(0)
+  technicalDifficultyMessage    String   @default("We are experiencing technical difficulties. Please try again shortly.") @db.VarChar(500)
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  merchant                      Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+}
+
+model ApiKey {
+  id          String             @id @default(uuid()) @db.Uuid
+  merchantId  String             @db.Uuid
+  environment RuntimeEnvironment
+  label       String             @db.VarChar(100)
+  prefix      String             @unique @db.VarChar(32)
+  secretHash  String             @db.VarChar(255)
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime           @default(now())
+  merchant    Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@index([merchantId, environment])
+}
+
+model IdempotencyRecord {
+  id           String             @id @default(uuid()) @db.Uuid
+  merchantId   String             @db.Uuid
+  environment  RuntimeEnvironment
+  operation    String             @db.VarChar(80)
+  key          String             @db.VarChar(255)
+  requestHash  String             @db.VarChar(64)
+  responseCode Int
+  responseBody Json
+  createdAt    DateTime           @default(now())
+  expiresAt    DateTime
+  merchant     Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([merchantId, environment, operation, key])
+  @@index([expiresAt])
+}
+
+model FleetLocation {
+  id        String        @id @default(uuid()) @db.Uuid
+  name      String        @db.VarChar(120)
+  code      String        @unique @db.VarChar(40)
+  timezone  String        @default("Africa/Addis_Ababa") @db.VarChar(80)
+  createdAt DateTime      @default(now())
+  groups    DeviceGroup[]
+}
+
+model DeviceGroup {
+  id                  String                @id @default(uuid()) @db.Uuid
+  locationId          String                @db.Uuid
+  name                String                @db.VarChar(120)
+  code                String                @unique @db.VarChar(40)
+  dailyLimitMinor     BigInt                @default(15000000)
+  walletCeilingMinor  BigInt                @default(7500000)
+  safetyBalanceMinor  BigInt                @default(100000)
+  safetyHeadroomMinor BigInt                @default(100000)
+  createdAt           DateTime              @default(now())
+  updatedAt           DateTime              @updatedAt
+  location            FleetLocation         @relation(fields: [locationId], references: [id])
+  devices             Device[]
+  merchants           MerchantGroupPolicy[]
+  sweepRules          SweepRule[]
+}
+
+model MerchantGroupPolicy {
+  merchantId String      @db.Uuid
+  groupId    String      @db.Uuid
+  priority   Int         @default(100)
+  dedicated  Boolean     @default(false)
+  merchant   Merchant    @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  group      DeviceGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([merchantId, groupId])
+}
+
+model Device {
+  id                     String                   @id @default(uuid()) @db.Uuid
+  groupId                String                   @db.Uuid
+  name                   String                   @db.VarChar(120)
+  hardwareSerial         String?                  @unique @db.VarChar(120)
+  imei1                  String?                  @unique @db.VarChar(20)
+  imei2                  String?                  @unique @db.VarChar(20)
+  model                  String?                  @db.VarChar(100)
+  buildFingerprint       String?                  @db.VarChar(255)
+  agentVersion           String?                  @db.VarChar(32)
+  ussdProfileVersion     String?                  @db.VarChar(32)
+  status                 DeviceStatus             @default(pending)
+  authTokenHash          String?                  @db.VarChar(255)
+  certificateFingerprint String?                  @unique @db.VarChar(128)
+  lastHeartbeatAt        DateTime?
+  lastPermissionsOk      Boolean                  @default(false)
+  lastAccessibilityOk    Boolean                  @default(false)
+  openclawPaired         Boolean                  @default(false)
+  batteryPercent         Int?
+  charging               Boolean?
+  temperatureCelsius     Decimal?                 @db.Decimal(5, 2)
+  networkType            String?                  @db.VarChar(32)
+  activeUssdJobId        String?                  @unique @db.Uuid
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @updatedAt
+  group                  DeviceGroup              @relation(fields: [groupId], references: [id])
+  sims                   SimWallet[]
+  jobs                   DeviceJob[]              @relation("DeviceJobs")
+  activeUssdJob          DeviceJob?               @relation("ActiveUssdJob", fields: [activeUssdJobId], references: [id])
+  qualificationRuns      DeviceQualificationRun[]
+  ussdEvidence           UssdEvidence[]
+  unattributedSmsEvidence UnattributedSmsEvidence[]
+}
+
+model SimWallet {
+  id                      String                     @id @default(uuid()) @db.Uuid
+  deviceId                String                     @db.Uuid
+  slot                    Int
+  subscriptionId          Int?
+  iccid                   String                     @unique @db.VarChar(32)
+  iccidHash               String                     @unique @db.VarChar(64)
+  phoneNumber             String                     @unique @db.VarChar(16)
+  telebirrAccountName     String                     @db.VarChar(200)
+  status                  SimStatus                  @default(pending)
+  mainBalanceMinor        BigInt                     @default(0)
+  incentiveBalanceMinor   BigInt                     @default(0)
+  fuelBalanceMinor        BigInt                     @default(0)
+  pocketMoneyBalanceMinor BigInt                     @default(0)
+  reservedBalanceMinor    BigInt                     @default(0)
+  sentTodayMinor          BigInt                     @default(0)
+  receivedTodayMinor      BigInt                     @default(0)
+  financialDay            DateTime?
+  lastBalanceAt           DateTime?
+  lastBalanceSource       String?                    @db.VarChar(32)
+  lastSmsAt               DateTime?
+  nextFencingToken        BigInt                     @default(0)
+  createdAt               DateTime                   @default(now())
+  updatedAt               DateTime                   @updatedAt
+  device                  Device                     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  balanceSnapshots        BalanceSnapshot[]
+  deposits                DepositIntent[]
+  receipts                SmsReceipt[]
+  transfers               Transfer[]
+  jobs                    DeviceJob[]
+  sweepExecutions         SweepExecution[]
+  qualificationChecks     DeviceQualificationCheck[]
+
+  @@unique([deviceId, slot])
+  @@index([status, mainBalanceMinor])
+}
+
+model DeviceQualificationRun {
+  id             String                     @id @default(uuid()) @db.Uuid
+  deviceId       String                     @db.Uuid
+  status         QualificationRunStatus     @default(pending)
+  startedAt      DateTime?
+  completedAt    DateTime?
+  approvedAt     DateTime?
+  approvedBy     String?                    @db.VarChar(128)
+  approvalReason String?                    @db.VarChar(1000)
+  createdAt      DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  device         Device                     @relation(fields: [deviceId], references: [id], onDelete: Cascade)
+  checks         DeviceQualificationCheck[]
+
+  @@index([deviceId, createdAt])
+  @@index([status, createdAt])
+}
+
+model DeviceQualificationCheck {
+  id          String                   @id @default(uuid()) @db.Uuid
+  runId       String                   @db.Uuid
+  simWalletId String?                  @db.Uuid
+  key         String                   @db.VarChar(80)
+  status      QualificationCheckStatus @default(pending)
+  evidence    Json?
+  observedAt  DateTime?
+  recordedBy  String?                  @db.VarChar(128)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  run         DeviceQualificationRun   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  simWallet   SimWallet?               @relation(fields: [simWalletId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, simWalletId, key])
+  @@index([runId, status])
+}
+
+model BalanceSnapshot {
+  id                      String    @id @default(uuid()) @db.Uuid
+  simWalletId             String    @db.Uuid
+  mainBalanceMinor        BigInt
+  incentiveBalanceMinor   BigInt
+  fuelBalanceMinor        BigInt
+  pocketMoneyBalanceMinor BigInt
+  source                  String    @db.VarChar(32)
+  observedAt              DateTime
+  createdAt               DateTime  @default(now())
+  simWallet               SimWallet @relation(fields: [simWalletId], references: [id], onDelete: Cascade)
+
+  @@index([simWalletId, observedAt])
+}
+
+model DepositIntent {
+  id                    String             @id @default(uuid()) @db.Uuid
+  merchantId            String             @db.Uuid
+  environment           RuntimeEnvironment
+  simWalletId           String             @db.Uuid
+  txRef                 String             @db.VarChar(128)
+  customerId            String             @db.VarChar(128)
+  customerName          String             @db.VarChar(200)
+  customerPhone         String             @db.VarChar(16)
+  amountMinor           BigInt
+  creditedAmountMinor   BigInt?
+  currency              String             @default("ETB") @db.Char(3)
+  status                DepositStatus      @default(awaiting_payment)
+  callbackUrl           String?            @db.VarChar(2000)
+  returnUrl             String?            @db.VarChar(2000)
+  metadata              Json?
+  expiresAt             DateTime
+  lateGraceEndsAt       DateTime
+  matchedReceiptId      String?            @unique @db.Uuid
+  providerTransactionId String?            @unique @db.VarChar(64)
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @updatedAt
+  merchant              Merchant           @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  simWallet             SimWallet          @relation(fields: [simWalletId], references: [id], onDelete: Restrict)
+  matchedReceipt        SmsReceipt?        @relation("MatchedDepositReceipt", fields: [matchedReceiptId], references: [id])
+
+  @@unique([merchantId, environment, txRef])
+  @@index([merchantId, environment, customerId, status])
+  @@index([simWalletId, status, expiresAt])
+}
+
+model SmsReceipt {
+  id                      String         @id @default(uuid()) @db.Uuid
+  eventId                 String         @unique @db.Uuid
+  simWalletId             String         @db.Uuid
+  sender                  String         @db.VarChar(32)
+  direction               String         @db.VarChar(20)
+  type                    String         @db.VarChar(32)
+  rawBody                 String         @db.Text
+  bodyHash                String         @db.VarChar(64)
+  parsed                  Json?
+  providerTransactionId   String?        @unique @db.VarChar(64)
+  amountMinor             BigInt?
+  counterpartyName        String?        @db.VarChar(200)
+  counterpartyPhoneSuffix String?        @db.VarChar(12)
+  counterpartyPhonePrefix String?        @db.VarChar(12)
+  providerOccurredAt      DateTime?
+  receivedAt              DateTime
+  multipartReference      String?        @db.VarChar(100)
+  evidenceObjectKey       String?        @db.VarChar(512)
+  createdAt               DateTime       @default(now())
+  simWallet               SimWallet      @relation(fields: [simWalletId], references: [id], onDelete: Restrict)
+  matchedDeposit          DepositIntent? @relation("MatchedDepositReceipt")
+
+  @@index([simWalletId, receivedAt])
+  @@index([type, providerOccurredAt])
+  @@index([evidenceObjectKey])
+}
+
+model Transfer {
+  id                      String             @id @default(uuid()) @db.Uuid
+  merchantId              String             @db.Uuid
+  environment             RuntimeEnvironment
+  simWalletId             String?            @db.Uuid
+  reference               String             @db.VarChar(128)
+  customerId              String             @db.VarChar(128)
+  destinationPhone        String             @db.VarChar(16)
+  expectedName            String             @db.VarChar(200)
+  resolvedName            String?            @db.VarChar(200)
+  amountMinor             BigInt
+  reserveProviderFeeMinor BigInt
+  providerFeeMinor        BigInt?
+  providerVatMinor        BigInt?
+  gatewayFeeMinor         BigInt
+  financialMode           FinancialMode      @default(merchant_debit)
+  operationKind           DeviceJobType      @default(customer_withdrawal)
+  status                  TransferStatus     @default(accepted)
+  callbackUrl             String?            @db.VarChar(2000)
+  metadata                Json?
+  providerTransactionId   String?            @unique @db.VarChar(64)
+  committedAt             DateTime?
+  estimatedCompletionAt   DateTime?
+  completedAt             DateTime?
+  createdAt               DateTime           @default(now())
+  updatedAt               DateTime           @updatedAt
+  merchant                Merchant           @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  simWallet               SimWallet?         @relation(fields: [simWalletId], references: [id], onDelete: Restrict)
+  attempts                TransferAttempt[]
+  settlement              SettlementRequest?
+  sweepExecution          SweepExecution?
+
+  @@unique([merchantId, environment, reference])
+  @@index([status, createdAt])
+}
+
+model SettlementRequest {
+  id               String             @id @default(uuid()) @db.Uuid
+  merchantId       String             @db.Uuid
+  environment      RuntimeEnvironment
+  reference        String             @db.VarChar(128)
+  destinationPhone String             @db.VarChar(16)
+  expectedName     String             @db.VarChar(200)
+  amountMinor      BigInt
+  status           SettlementStatus   @default(requested)
+  transferId       String?            @unique @db.Uuid
+  requestedBy      String             @db.VarChar(128)
+  reviewedBy       String?            @db.VarChar(128)
+  reviewReason     String?            @db.VarChar(1000)
+  reviewedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  merchant         Merchant           @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  transfer         Transfer?          @relation(fields: [transferId], references: [id], onDelete: Restrict)
+
+  @@unique([merchantId, environment, reference])
+  @@index([status, createdAt])
+}
+
+model SweepRule {
+  id                     String               @id @default(uuid()) @db.Uuid
+  merchantId             String               @db.Uuid
+  groupId                String               @db.Uuid
+  environment            RuntimeEnvironment
+  name                   String               @db.VarChar(120)
+  status                 SweepRuleStatus      @default(pending)
+  destinationType        SweepDestinationType
+  destinationPhone       String               @db.VarChar(16)
+  destinationName        String               @db.VarChar(200)
+  highWaterMinor         BigInt
+  targetBalanceMinor     BigInt
+  maxPerRunMinor         BigInt
+  minimumIntervalSeconds Int                  @default(900)
+  enabled                Boolean              @default(true)
+  version                Int                  @default(1)
+  proposedBy             String               @db.VarChar(128)
+  approvedBy             String?              @db.VarChar(128)
+  approvalReason         String?              @db.VarChar(1000)
+  approvedAt             DateTime?
+  lastExecutedAt         DateTime?
+  createdAt              DateTime             @default(now())
+  updatedAt              DateTime             @updatedAt
+  merchant               Merchant             @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  group                  DeviceGroup          @relation(fields: [groupId], references: [id], onDelete: Restrict)
+  executions             SweepExecution[]
+
+  @@unique([merchantId, environment, name])
+  @@index([status, enabled, lastExecutedAt])
+}
+
+model SweepExecution {
+  id             String               @id @default(uuid()) @db.Uuid
+  ruleId         String               @db.Uuid
+  simWalletId    String               @db.Uuid
+  transferId     String               @unique @db.Uuid
+  idempotencyKey String               @unique @db.VarChar(200)
+  amountMinor    BigInt
+  status         SweepExecutionStatus @default(queued)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  completedAt    DateTime?
+  rule           SweepRule            @relation(fields: [ruleId], references: [id], onDelete: Restrict)
+  simWallet      SimWallet            @relation(fields: [simWalletId], references: [id], onDelete: Restrict)
+  transfer       Transfer             @relation(fields: [transferId], references: [id], onDelete: Restrict)
+
+  @@index([ruleId, status, createdAt])
+  @@index([simWalletId, status])
+}
+
+model TransferAttempt {
+  id            String     @id @default(uuid()) @db.Uuid
+  transferId    String     @db.Uuid
+  attemptNumber Int
+  fencingToken  BigInt
+  deviceJobId   String?    @unique @db.Uuid
+  startedAt     DateTime?
+  committedAt   DateTime?
+  completedAt   DateTime?
+  outcome       String?    @db.VarChar(32)
+  errorCode     String?    @db.VarChar(80)
+  createdAt     DateTime   @default(now())
+  transfer      Transfer   @relation(fields: [transferId], references: [id], onDelete: Cascade)
+  deviceJob     DeviceJob? @relation(fields: [deviceJobId], references: [id])
+
+  @@unique([transferId, attemptNumber])
+}
+
+model DeviceJob {
+  id              String           @id @default(uuid()) @db.Uuid
+  type            DeviceJobType
+  state           DeviceJobState   @default(queued)
+  priority        Int
+  deviceId        String?          @db.Uuid
+  simWalletId     String           @db.Uuid
+  profileVersion  String           @db.VarChar(32)
+  payload         Json
+  attempt         Int              @default(1)
+  fencingToken    BigInt
+  leaseOwner      String?          @db.Uuid
+  leaseExpiresAt  DateTime?
+  expiresAt       DateTime
+  signature       String?          @db.VarChar(128)
+  startedAt       DateTime?
+  committedAt     DateTime?
+  completedAt     DateTime?
+  errorCode       String?          @db.VarChar(80)
+  lastScreenText  String?          @db.Text
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  device          Device?          @relation("DeviceJobs", fields: [deviceId], references: [id])
+  activeOnDevice  Device?          @relation("ActiveUssdJob")
+  simWallet       SimWallet        @relation(fields: [simWalletId], references: [id], onDelete: Restrict)
+  transferAttempt TransferAttempt?
+  ussdEvidence    UssdEvidence[]
+
+  @@index([state, priority, createdAt])
+  @@index([deviceId, state])
+}
+
+model UssdEvidence {
+  id                String    @id @default(uuid()) @db.Uuid
+  eventId           String    @unique @db.Uuid
+  deviceId          String    @db.Uuid
+  deviceJobId       String    @db.Uuid
+  stepId            String    @db.VarChar(128)
+  encryptedScreen   String    @db.Text
+  screenHash        String    @db.VarChar(64)
+  capturedAt        DateTime
+  evidenceObjectKey String?   @db.VarChar(512)
+  createdAt         DateTime  @default(now())
+  device            Device    @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+  deviceJob         DeviceJob @relation(fields: [deviceJobId], references: [id], onDelete: Restrict)
+
+  @@index([deviceJobId, capturedAt])
+  @@index([evidenceObjectKey])
+}
+
+model UnattributedSmsEvidence {
+  id                String   @id @default(uuid()) @db.Uuid
+  eventId           String   @unique @db.Uuid
+  deviceId          String   @db.Uuid
+  encryptedBody     String   @db.Text
+  bodyHash          String   @db.VarChar(64)
+  reason            String   @db.VarChar(120)
+  receivedAt        DateTime
+  evidenceObjectKey String?  @db.VarChar(512)
+  createdAt         DateTime @default(now())
+  device            Device   @relation(fields: [deviceId], references: [id], onDelete: Restrict)
+
+  @@index([deviceId, receivedAt])
+  @@index([evidenceObjectKey])
+}
+
+model LedgerAccount {
+  id           String             @id @default(uuid()) @db.Uuid
+  merchantId   String?            @db.Uuid
+  environment  RuntimeEnvironment
+  code         String             @db.VarChar(80)
+  name         String             @db.VarChar(160)
+  type         LedgerAccountType
+  balanceMinor BigInt             @default(0)
+  currency     String             @default("ETB") @db.Char(3)
+  createdAt    DateTime           @default(now())
+  merchant     Merchant?          @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  entries      LedgerEntry[]
+
+  @@unique([merchantId, environment, code])
+}
+
+model LedgerJournal {
+  id          String             @id @default(uuid()) @db.Uuid
+  environment RuntimeEnvironment
+  sourceType  String             @db.VarChar(50)
+  sourceId    String             @db.Uuid
+  description String             @db.VarChar(500)
+  createdAt   DateTime           @default(now())
+  entries     LedgerEntry[]
+
+  @@unique([sourceType, sourceId])
+}
+
+model LedgerEntry {
+  id          String        @id @default(uuid()) @db.Uuid
+  journalId   String        @db.Uuid
+  accountId   String        @db.Uuid
+  amountMinor BigInt
+  direction   String        @db.Char(1)
+  createdAt   DateTime      @default(now())
+  journal     LedgerJournal @relation(fields: [journalId], references: [id], onDelete: Restrict)
+  account     LedgerAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, createdAt])
+}
+
+model WebhookEndpoint {
+  id              String             @id @default(uuid()) @db.Uuid
+  merchantId      String             @db.Uuid
+  environment     RuntimeEnvironment
+  url             String             @db.VarChar(2000)
+  secretHash      String             @db.VarChar(255)
+  encryptedSecret String             @db.Text
+  enabled         Boolean            @default(true)
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  merchant        Merchant           @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deliveries      WebhookDelivery[]
+}
+
+model OutboxEvent {
+  id            String            @id @default(uuid()) @db.Uuid
+  aggregateType String            @db.VarChar(50)
+  aggregateId   String            @db.Uuid
+  eventType     String            @db.VarChar(80)
+  payload       Json
+  publishedAt   DateTime?
+  createdAt     DateTime          @default(now())
+  deliveries    WebhookDelivery[]
+
+  @@index([publishedAt, createdAt])
+}
+
+model WebhookDelivery {
+  id             String          @id @default(uuid()) @db.Uuid
+  outboxEventId  String          @db.Uuid
+  endpointId     String          @db.Uuid
+  attempt        Int             @default(0)
+  status         String          @default("pending") @db.VarChar(20)
+  nextAttemptAt  DateTime        @default(now())
+  leaseToken     String?         @db.VarChar(64)
+  leaseExpiresAt DateTime?
+  responseCode   Int?
+  responseBody   String?         @db.Text
+  deliveredAt    DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  outboxEvent    OutboxEvent     @relation(fields: [outboxEventId], references: [id], onDelete: Cascade)
+  endpoint       WebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@unique([outboxEventId, endpointId])
+  @@index([status, nextAttemptAt])
+  @@index([status, leaseExpiresAt])
+}
+
+model InboxEvent {
+  id          String   @id @default(uuid()) @db.Uuid
+  source      String   @db.VarChar(40)
+  externalId  String   @db.VarChar(128)
+  payloadHash String   @db.VarChar(64)
+  processedAt DateTime @default(now())
+
+  @@unique([source, externalId])
+}
+
+model ReconciliationCase {
+  id            String               @id @default(uuid()) @db.Uuid
+  merchantId    String?              @db.Uuid
+  type          String               @db.VarChar(60)
+  status        ReconciliationStatus @default(open)
+  referenceType String               @db.VarChar(40)
+  referenceId   String               @db.Uuid
+  evidence      Json
+  proposal      Json?
+  resolution    Json?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  @@index([status, createdAt])
+}
+
+/// A communication and evidence workflow. Resolving this record never posts a
+/// ledger entry or resolves a ReconciliationCase; financial resolution remains
+/// confined to the separately audited reconciliation endpoints.
+model MerchantSupportCase {
+  id              String               @id @default(uuid()) @db.Uuid
+  merchantId      String               @db.Uuid
+  environment     RuntimeEnvironment
+  category        SupportCaseCategory
+  status          SupportCaseStatus    @default(open)
+  subject         String               @db.VarChar(200)
+  reference       String?              @db.VarChar(128)
+  createdByUserId String?              @db.Uuid
+  assignedStaffId String?              @db.Uuid
+  workflowNote    String?              @db.VarChar(1000)
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+  resolvedAt      DateTime?
+  merchant        Merchant             @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  createdBy       MerchantUser?        @relation("SupportCaseCreator", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  assignedStaff   PlatformStaff?       @relation("SupportCaseAssignee", fields: [assignedStaffId], references: [id], onDelete: SetNull)
+  messages        SupportCaseMessage[]
+
+  @@index([merchantId, environment, status, updatedAt])
+  @@index([status, updatedAt])
+}
+
+model SupportCaseMessage {
+  id                    String              @id @default(uuid()) @db.Uuid
+  caseId                String              @db.Uuid
+  authorMerchantUserId  String?             @db.Uuid
+  authorPlatformStaffId String?             @db.Uuid
+  body                  String              @db.Text
+  evidenceReference     String?             @db.VarChar(500)
+  proposal              Json?
+  createdAt             DateTime            @default(now())
+  supportCase           MerchantSupportCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  authorMerchantUser    MerchantUser?       @relation("SupportMessageMerchantAuthor", fields: [authorMerchantUserId], references: [id], onDelete: SetNull)
+  authorPlatformStaff   PlatformStaff?      @relation("SupportMessagePlatformAuthor", fields: [authorPlatformStaffId], references: [id], onDelete: SetNull)
+
+  @@index([caseId, createdAt])
+}
+
+model AuditLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  merchantId String?   @db.Uuid
+  actorType  String    @db.VarChar(32)
+  actorId    String    @db.VarChar(128)
+  action     String    @db.VarChar(100)
+  targetType String    @db.VarChar(60)
+  targetId   String?   @db.VarChar(128)
+  reason     String?   @db.VarChar(1000)
+  metadata   Json?
+  createdAt  DateTime  @default(now())
+  merchant   Merchant? @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, createdAt])
+}
+
+model DeviceActivationCode {
+  id         String    @id @default(uuid()) @db.Uuid
+  deviceId   String    @db.Uuid
+  codeHash   String    @db.VarChar(64)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+
+  @@index([codeHash, expiresAt])
+}

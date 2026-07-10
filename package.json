@@ -1,0 +1,32 @@
+{
+  "name": "telebirr-p2p-gateway",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Multi-merchant Telebirr P2P gateway, fleet control plane and operator portals.",
+  "workspaces": [
+    "apps/api",
+    "apps/admin",
+    "apps/merchant",
+    "apps/checkout",
+    "packages/*",
+    "integrations/*",
+    "sdk/*",
+    "tools/*"
+  ],
+  "scripts": {
+    "build": "npm -w @telebirr/contracts run build && npm run build --workspaces --if-present",
+    "test": "npm -w @telebirr/contracts run build && npm run test --workspaces --if-present",
+    "typecheck": "npm -w @telebirr/contracts run build && npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "dev:api": "npm -w @telebirr/api run start:dev",
+    "dev:admin": "npm -w @telebirr/admin run dev",
+    "dev:merchant": "npm -w @telebirr/merchant run dev",
+    "dev:checkout": "npm -w @telebirr/checkout run dev",
+    "prisma:generate": "npm -w @telebirr/api run prisma:generate",
+    "prisma:migrate": "npm -w @telebirr/api run prisma:migrate"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "npm": ">=10.0.0"
+  }
+}

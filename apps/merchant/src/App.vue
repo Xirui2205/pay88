@@ -1,0 +1,1 @@
+<script setup lang="ts">import {onMounted} from 'vue';import MerchantShell from './components/MerchantShell.vue';import LoginPage from './components/LoginPage.vue';import {useMerchantStore} from './stores/merchant';const store=useMerchantStore();onMounted(()=>store.restore());</script><template><MerchantShell v-if="store.authenticated"/><LoginPage v-else/></template>

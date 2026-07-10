@@ -1,0 +1,2 @@
+import {createRouter,createWebHistory} from 'vue-router';import DepositPage from './pages/DepositPage.vue';import WithdrawalPage from './pages/WithdrawalPage.vue';
+export default createRouter({history:createWebHistory(import.meta.env.BASE_URL),routes:[{path:'/',redirect:'/checkout/demo?token=demo'},{path:'/checkout/:txRef',component:DepositPage},{path:'/pay/:txRef',redirect:to=>({path:`/checkout/${String(to.params.txRef)}`,query:to.query})},{path:'/withdrawal/:reference',component:WithdrawalPage},{path:'/:pathMatch(.*)*',redirect:'/checkout/demo?token=demo'}]})

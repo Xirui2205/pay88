@@ -1,0 +1,381 @@
+{
+  "info": {
+    "_postman_id": "3bdd733c-4ad2-4d61-9fae-telebirrp2pv1",
+    "name": "Telebirr P2P Gateway V1",
+    "description": "Merchant API collection for deposits, top-ups, transfers, hosted status/SSE, delayed test completion, settlements, sweep rules and idempotent webhooks, plus portal-session examples for tenant-scoped support cases. Set sweep_group_id to a group assigned during onboarding before running sweep-rule requests, set webhook_url to a public receiver before registering a webhook, and supply portal_session/platform_session before support workflows.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{secret_key}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "base_url", "value": "http://localhost:3000" },
+    { "key": "secret_key", "value": "sk_test_demo.demo_secret_change_before_shared_use_2026" },
+    { "key": "tx_ref", "value": "postman-deposit-001" },
+    { "key": "topup_ref", "value": "postman-topup-001" },
+    { "key": "transfer_ref", "value": "postman-withdrawal-001" },
+    { "key": "delayed_transfer_ref", "value": "postman-delayed-withdrawal-001" },
+    { "key": "settlement_ref", "value": "postman-settlement-001" },
+    { "key": "sweep_group_id", "value": "11111111-1111-4111-8111-111111111111" },
+    { "key": "sweep_rule_id", "value": "replace-after-create" },
+    { "key": "hosted_transfer_token", "value": "replace-after-transfer" },
+    { "key": "webhook_url", "value": "", "description": "Set to a publicly routable receiver before running webhook registration; localhost/private addresses are rejected." },
+    { "key": "webhook_delivery_id", "value": "replace-from-webhook-log" },
+    { "key": "portal_session", "value": "replace-with-mps-session", "description": "Individual merchant portal session, not a secret API key." },
+    { "key": "platform_session", "value": "replace-with-pas-session", "description": "Individual platform staff session with the required role." },
+    { "key": "support_case_id", "value": "replace-after-create" }
+  ],
+  "item": [
+    {
+      "name": "Deposits",
+      "item": [
+        {
+          "name": "Initialize deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{tx_ref}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"500.00\",\n  \"currency\": \"ETB\",\n  \"tx_ref\": \"{{tx_ref}}\",\n  \"customer_id\": \"customer-42\",\n  \"phone_number\": \"0912345678\",\n  \"first_name\": \"Test\",\n  \"last_name\": \"Customer\",\n  \"return_url\": \"https://merchant.example/return\",\n  \"metadata\": { \"account_id\": \"wallet-42\" },\n  \"test_scenario\": \"success\"\n}"
+            },
+            "url": "{{base_url}}/v1/transaction/initialize"
+          }
+        },
+        {
+          "name": "Verify deposit",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/transaction/verify/{{tx_ref}}" }
+        }
+      ]
+    },
+    {
+      "name": "Merchant top-ups",
+      "item": [
+        {
+          "name": "Initialize top-up",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{topup_ref}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": \"10000.00\",\n  \"currency\": \"ETB\",\n  \"tx_ref\": \"{{topup_ref}}\",\n  \"customer_id\": \"treasury-operator\",\n  \"phone_number\": \"0911234567\",\n  \"first_name\": \"Merchant\",\n  \"last_name\": \"Treasury\",\n  \"test_scenario\": \"success\"\n}"
+            },
+            "url": "{{base_url}}/v1/topups/initialize"
+          }
+        },
+        {
+          "name": "Verify top-up",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/transaction/verify/{{topup_ref}}" }
+        }
+      ]
+    },
+    {
+      "name": "Transfers and hosted status",
+      "item": [
+        {
+          "name": "Create withdrawal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.status_api_url) {",
+                  "  const query = body.data.status_api_url.split('?')[1] || '';",
+                  "  const token = query.split('&').map(v => v.split('=')).find(v => v[0] === 'token');",
+                  "  if (token) pm.collectionVariables.set('hosted_transfer_token', decodeURIComponent(token[1]));",
+                  "}"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{transfer_ref}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"0912345678\",\n  \"expected_name\": \"Test Receiver\",\n  \"amount\": \"500.00\",\n  \"currency\": \"ETB\",\n  \"reference\": \"{{transfer_ref}}\",\n  \"bank_code\": 855,\n  \"customer_id\": \"customer-42\",\n  \"destination_type\": \"registered\",\n  \"metadata\": { \"account_id\": \"wallet-42\" },\n  \"test_scenario\": \"success\"\n}"
+            },
+            "url": "{{base_url}}/v1/transfers"
+          }
+        },
+        {
+          "name": "Verify withdrawal",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/transfers/verify/{{transfer_ref}}" }
+        },
+        {
+          "name": "Hosted transfer status",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "url": "{{base_url}}/v1/hosted/transfers/{{transfer_ref}}?token={{hosted_transfer_token}}"
+          }
+        },
+        {
+          "name": "Hosted transfer SSE (closes after terminal event)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "text/event-stream" }],
+            "url": "{{base_url}}/v1/hosted/transfers/{{transfer_ref}}/events?token={{hosted_transfer_token}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Merchant settlements",
+      "item": [
+        {
+          "name": "Request settlement",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{settlement_ref}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reference\": \"{{settlement_ref}}\",\n  \"account_number\": \"0912345678\",\n  \"expected_name\": \"Merchant Treasury\",\n  \"amount\": \"25000.00\",\n  \"currency\": \"ETB\",\n  \"metadata\": { \"requested_by\": \"finance-team\" }\n}"
+            },
+            "url": "{{base_url}}/v1/settlements"
+          }
+        },
+        {
+          "name": "List settlements",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/settlements" }
+        },
+        {
+          "name": "Get settlement",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/settlements/{{settlement_ref}}" }
+        }
+      ]
+    },
+    {
+      "name": "Test simulator (test key only)",
+      "item": [
+        {
+          "name": "Create delayed withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "{{delayed_transfer_ref}}" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"account_number\": \"0912345678\",\n  \"expected_name\": \"Test Receiver\",\n  \"amount\": \"50.00\",\n  \"currency\": \"ETB\",\n  \"reference\": \"{{delayed_transfer_ref}}\",\n  \"bank_code\": 855,\n  \"customer_id\": \"delayed-customer-42\",\n  \"destination_type\": \"registered\",\n  \"test_scenario\": \"delay\"\n}"
+            },
+            "url": "{{base_url}}/v1/transfers"
+          }
+        },
+        {
+          "name": "Complete delayed withdrawal as success",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"outcome\": \"success\"\n}" },
+            "url": "{{base_url}}/v1/test/scenarios/transfers/{{delayed_transfer_ref}}/complete"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Sweep rules (requires onboarded group ID)",
+      "item": [
+        {
+          "name": "Create sweep rule",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.id) pm.collectionVariables.set('sweep_rule_id', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "postman-sweep-create-001" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"group_id\": \"{{sweep_group_id}}\",\n  \"name\": \"Postman high-water rule\",\n  \"destination_type\": \"merchant_owned\",\n  \"destination_phone\": \"0912345678\",\n  \"destination_name\": \"Merchant Jumbo Account\",\n  \"high_water_balance\": \"75000.00\",\n  \"target_balance\": \"50000.00\",\n  \"max_per_run\": \"25000.00\",\n  \"minimum_interval_seconds\": 900\n}"
+            },
+            "url": "{{base_url}}/v1/sweep-rules"
+          }
+        },
+        {
+          "name": "List sweep rules",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/sweep-rules" }
+        },
+        {
+          "name": "Get sweep rule",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/sweep-rules/{{sweep_rule_id}}" }
+        },
+        {
+          "name": "Replace and resubmit sweep rule",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "postman-sweep-update-002" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"group_id\": \"{{sweep_group_id}}\",\n  \"name\": \"Postman high-water rule\",\n  \"destination_type\": \"merchant_owned\",\n  \"destination_phone\": \"0912345678\",\n  \"destination_name\": \"Merchant Jumbo Account\",\n  \"high_water_balance\": \"80000.00\",\n  \"target_balance\": \"55000.00\",\n  \"max_per_run\": \"25000.00\",\n  \"minimum_interval_seconds\": 900\n}"
+            },
+            "url": "{{base_url}}/v1/sweep-rules/{{sweep_rule_id}}"
+          }
+        },
+        {
+          "name": "Disable sweep rule",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "postman-sweep-disable-001" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"reason\": \"Postman lifecycle test complete\"\n}" },
+            "url": "{{base_url}}/v1/sweep-rules/{{sweep_rule_id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Webhooks",
+      "item": [
+        {
+          "name": "Register webhook endpoint (set webhook_url first; secret is returned)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" },
+              { "key": "Idempotency-Key", "value": "postman-webhook-register-001" }
+            ],
+            "body": { "mode": "raw", "raw": "{\n  \"url\": \"{{webhook_url}}\"\n}" },
+            "url": "{{base_url}}/v1/webhooks"
+          }
+        },
+        {
+          "name": "List webhook endpoints (no secrets)",
+          "request": { "method": "GET", "url": "{{base_url}}/v1/webhooks" }
+        },
+        {
+          "name": "Replay webhook delivery",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Idempotency-Key", "value": "postman-webhook-replay-001" }],
+            "url": "{{base_url}}/v1/webhooks/deliveries/{{webhook_delivery_id}}/replay"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Support cases (human sessions)",
+      "item": [
+        {
+          "name": "Open merchant support case",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "const body = pm.response.json();",
+                  "if (body.data && body.data.id) pm.collectionVariables.set('support_case_id', body.data.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_session}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"environment\": \"test\",\n  \"category\": \"transaction_match\",\n  \"subject\": \"Review an unmatched test receipt\",\n  \"reference\": \"{{tx_ref}}\",\n  \"message\": \"Please review the evidence associated with this test transaction.\",\n  \"evidence_reference\": \"evidence://merchant-upload/postman-001\",\n  \"proposed_match\": {\n    \"kind\": \"deposit_intent\",\n    \"reference\": \"{{tx_ref}}\",\n    \"explanation\": \"The amount and sender suffix appear consistent.\"\n  }\n}"
+            },
+            "url": "{{base_url}}/v1/portal/support/cases"
+          }
+        },
+        {
+          "name": "List merchant support cases",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_session}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{base_url}}/v1/portal/support/cases?environment=test&limit=100"
+          }
+        },
+        {
+          "name": "Get merchant support case",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_session}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{base_url}}/v1/portal/support/cases/{{support_case_id}}"
+          }
+        },
+        {
+          "name": "Add merchant support message",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{portal_session}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Additional non-sensitive evidence is now available.\",\n  \"evidence_reference\": \"evidence://merchant-upload/postman-002\"\n}" },
+            "url": "{{base_url}}/v1/portal/support/cases/{{support_case_id}}/messages"
+          }
+        },
+        {
+          "name": "List platform support cases",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{platform_session}}", "type": "string" }] },
+            "method": "GET",
+            "url": "{{base_url}}/v1/admin/support/cases?status=open&limit=100"
+          }
+        },
+        {
+          "name": "Add platform support reply",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{platform_session}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"message\": \"Platform support is reviewing the proposal; no financial action has been performed.\"\n}" },
+            "url": "{{base_url}}/v1/admin/support/cases/{{support_case_id}}/messages"
+          }
+        },
+        {
+          "name": "Update support workflow status (non-financial)",
+          "request": {
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{platform_session}}", "type": "string" }] },
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"status\": \"investigating\",\n  \"reason\": \"Evidence review has started; this changes communication workflow only.\"\n}" },
+            "url": "{{base_url}}/v1/admin/support/cases/{{support_case_id}}/status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reference data",
+      "item": [
+        { "name": "List banks", "request": { "method": "GET", "url": "{{base_url}}/v1/banks" } },
+        { "name": "Merchant balances", "request": { "method": "GET", "url": "{{base_url}}/v1/balances" } },
+        { "name": "Health ready", "request": { "auth": { "type": "noauth" }, "method": "GET", "url": "{{base_url}}/health/ready" } }
+      ]
+    }
+  ]
+}

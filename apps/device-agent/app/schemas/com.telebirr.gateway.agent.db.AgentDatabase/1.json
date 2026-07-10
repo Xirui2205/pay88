@@ -1,0 +1,615 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "7f2495a9874d009f1ec79f670624acf3",
+    "entities": [
+      {
+        "tableName": "spool_events",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `kind` TEXT NOT NULL, `payloadIv` BLOB NOT NULL, `payloadCiphertext` BLOB NOT NULL, `createdAtMs` INTEGER NOT NULL, `attemptCount` INTEGER NOT NULL, `nextAttemptAtMs` INTEGER NOT NULL, `acknowledgedAtMs` INTEGER, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadIv",
+            "columnName": "payloadIv",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadCiphertext",
+            "columnName": "payloadCiphertext",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attemptCount",
+            "columnName": "attemptCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "nextAttemptAtMs",
+            "columnName": "nextAttemptAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acknowledgedAtMs",
+            "columnName": "acknowledgedAtMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_spool_events_nextAttemptAtMs",
+            "unique": false,
+            "columnNames": [
+              "nextAttemptAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_spool_events_nextAttemptAtMs` ON `${TABLE_NAME}` (`nextAttemptAtMs`)"
+          },
+          {
+            "name": "index_spool_events_acknowledgedAtMs",
+            "unique": false,
+            "columnNames": [
+              "acknowledgedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_spool_events_acknowledgedAtMs` ON `${TABLE_NAME}` (`acknowledgedAtMs`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "job_executions",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`jobId` TEXT NOT NULL, `financialOperationId` TEXT NOT NULL, `type` TEXT NOT NULL, `simIccidHash` TEXT NOT NULL, `profileId` TEXT NOT NULL, `profileVersion` INTEGER NOT NULL, `attempt` INTEGER NOT NULL, `fencingToken` INTEGER NOT NULL, `leaseExpiresAtMs` INTEGER NOT NULL, `jobExpiresAtMs` INTEGER NOT NULL, `payloadDigest` TEXT NOT NULL, `status` TEXT NOT NULL, `acceptedAtMs` INTEGER NOT NULL, `committedAtMs` INTEGER, `terminalAtMs` INTEGER, PRIMARY KEY(`jobId`))",
+        "fields": [
+          {
+            "fieldPath": "jobId",
+            "columnName": "jobId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "financialOperationId",
+            "columnName": "financialOperationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "type",
+            "columnName": "type",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "simIccidHash",
+            "columnName": "simIccidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileId",
+            "columnName": "profileId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "profileVersion",
+            "columnName": "profileVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "attempt",
+            "columnName": "attempt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "fencingToken",
+            "columnName": "fencingToken",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "leaseExpiresAtMs",
+            "columnName": "leaseExpiresAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jobExpiresAtMs",
+            "columnName": "jobExpiresAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payloadDigest",
+            "columnName": "payloadDigest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "acceptedAtMs",
+            "columnName": "acceptedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "committedAtMs",
+            "columnName": "committedAtMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "terminalAtMs",
+            "columnName": "terminalAtMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "jobId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_job_executions_financialOperationId",
+            "unique": false,
+            "columnNames": [
+              "financialOperationId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_job_executions_financialOperationId` ON `${TABLE_NAME}` (`financialOperationId`)"
+          },
+          {
+            "name": "index_job_executions_simIccidHash_fencingToken",
+            "unique": false,
+            "columnNames": [
+              "simIccidHash",
+              "fencingToken"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_job_executions_simIccidHash_fencingToken` ON `${TABLE_NAME}` (`simIccidHash`, `fencingToken`)"
+          },
+          {
+            "name": "index_job_executions_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_job_executions_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sim_fences",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`simIccidHash` TEXT NOT NULL, `highestToken` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`simIccidHash`))",
+        "fields": [
+          {
+            "fieldPath": "simIccidHash",
+            "columnName": "simIccidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "highestToken",
+            "columnName": "highestToken",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "simIccidHash"
+          ]
+        },
+        "indices": [],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "financial_commit_guards",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`financialOperationId` TEXT NOT NULL, `jobId` TEXT NOT NULL, `committedAtMs` INTEGER NOT NULL, PRIMARY KEY(`financialOperationId`))",
+        "fields": [
+          {
+            "fieldPath": "financialOperationId",
+            "columnName": "financialOperationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "jobId",
+            "columnName": "jobId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "committedAtMs",
+            "columnName": "committedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "financialOperationId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_financial_commit_guards_jobId",
+            "unique": true,
+            "columnNames": [
+              "jobId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_financial_commit_guards_jobId` ON `${TABLE_NAME}` (`jobId`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sms_evidence",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`messageDigest` TEXT NOT NULL, `providerTransactionId` TEXT, `simIccidHash` TEXT NOT NULL, `sender` TEXT NOT NULL, `rawIv` BLOB NOT NULL, `rawCiphertext` BLOB NOT NULL, `parsedType` TEXT NOT NULL, `receivedAtMs` INTEGER NOT NULL, `uploadedAtMs` INTEGER, PRIMARY KEY(`messageDigest`))",
+        "fields": [
+          {
+            "fieldPath": "messageDigest",
+            "columnName": "messageDigest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerTransactionId",
+            "columnName": "providerTransactionId",
+            "affinity": "TEXT",
+            "notNull": false
+          },
+          {
+            "fieldPath": "simIccidHash",
+            "columnName": "simIccidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sender",
+            "columnName": "sender",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawIv",
+            "columnName": "rawIv",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "rawCiphertext",
+            "columnName": "rawCiphertext",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "parsedType",
+            "columnName": "parsedType",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "receivedAtMs",
+            "columnName": "receivedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "uploadedAtMs",
+            "columnName": "uploadedAtMs",
+            "affinity": "INTEGER",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "messageDigest"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sms_evidence_providerTransactionId",
+            "unique": true,
+            "columnNames": [
+              "providerTransactionId"
+            ],
+            "orders": [],
+            "createSql": "CREATE UNIQUE INDEX IF NOT EXISTS `index_sms_evidence_providerTransactionId` ON `${TABLE_NAME}` (`providerTransactionId`)"
+          },
+          {
+            "name": "index_sms_evidence_receivedAtMs",
+            "unique": false,
+            "columnNames": [
+              "receivedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sms_evidence_receivedAtMs` ON `${TABLE_NAME}` (`receivedAtMs`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "balance_snapshots",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`simIccidHash` TEXT NOT NULL, `customerMinor` INTEGER, `incentiveMinor` INTEGER, `fuelMinor` INTEGER, `pocketMoneyMinor` INTEGER, `capturedAtMs` INTEGER NOT NULL, `sourceMessageDigest` TEXT NOT NULL, `sourceKind` TEXT NOT NULL, PRIMARY KEY(`simIccidHash`))",
+        "fields": [
+          {
+            "fieldPath": "simIccidHash",
+            "columnName": "simIccidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customerMinor",
+            "columnName": "customerMinor",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "incentiveMinor",
+            "columnName": "incentiveMinor",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "fuelMinor",
+            "columnName": "fuelMinor",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "pocketMoneyMinor",
+            "columnName": "pocketMoneyMinor",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "capturedAtMs",
+            "columnName": "capturedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceMessageDigest",
+            "columnName": "sourceMessageDigest",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sourceKind",
+            "columnName": "sourceKind",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "simIccidHash"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_balance_snapshots_capturedAtMs",
+            "unique": false,
+            "columnNames": [
+              "capturedAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_balance_snapshots_capturedAtMs` ON `${TABLE_NAME}` (`capturedAtMs`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "sim_identities",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`iccidHash` TEXT NOT NULL, `iccidIv` BLOB NOT NULL, `iccidCiphertext` BLOB NOT NULL, `enrolledNumber` TEXT NOT NULL, `normalizedAccountName` TEXT NOT NULL, `expectedSlotIndex` INTEGER NOT NULL, `slotIndex` INTEGER NOT NULL, `subscriptionId` INTEGER, `state` TEXT NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`iccidHash`))",
+        "fields": [
+          {
+            "fieldPath": "iccidHash",
+            "columnName": "iccidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iccidIv",
+            "columnName": "iccidIv",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "iccidCiphertext",
+            "columnName": "iccidCiphertext",
+            "affinity": "BLOB",
+            "notNull": true
+          },
+          {
+            "fieldPath": "enrolledNumber",
+            "columnName": "enrolledNumber",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "normalizedAccountName",
+            "columnName": "normalizedAccountName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expectedSlotIndex",
+            "columnName": "expectedSlotIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "slotIndex",
+            "columnName": "slotIndex",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "subscriptionId",
+            "columnName": "subscriptionId",
+            "affinity": "INTEGER",
+            "notNull": false
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "iccidHash"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_sim_identities_slotIndex",
+            "unique": false,
+            "columnNames": [
+              "slotIndex"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_sim_identities_slotIndex` ON `${TABLE_NAME}` (`slotIndex`)"
+          }
+        ],
+        "foreignKeys": []
+      },
+      {
+        "tableName": "balance_query_leases",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`leaseId` TEXT NOT NULL, `simIccidHash` TEXT NOT NULL, `createdAtMs` INTEGER NOT NULL, `expiresAtMs` INTEGER NOT NULL, `status` TEXT NOT NULL, `correlatedMessageDigest` TEXT, PRIMARY KEY(`leaseId`))",
+        "fields": [
+          {
+            "fieldPath": "leaseId",
+            "columnName": "leaseId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "simIccidHash",
+            "columnName": "simIccidHash",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAtMs",
+            "columnName": "createdAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "expiresAtMs",
+            "columnName": "expiresAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "correlatedMessageDigest",
+            "columnName": "correlatedMessageDigest",
+            "affinity": "TEXT",
+            "notNull": false
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "leaseId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_balance_query_leases_simIccidHash_expiresAtMs",
+            "unique": false,
+            "columnNames": [
+              "simIccidHash",
+              "expiresAtMs"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_balance_query_leases_simIccidHash_expiresAtMs` ON `${TABLE_NAME}` (`simIccidHash`, `expiresAtMs`)"
+          },
+          {
+            "name": "index_balance_query_leases_status",
+            "unique": false,
+            "columnNames": [
+              "status"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_balance_query_leases_status` ON `${TABLE_NAME}` (`status`)"
+          }
+        ],
+        "foreignKeys": []
+      }
+    ],
+    "views": [],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '7f2495a9874d009f1ec79f670624acf3')"
+    ]
+  }
+}

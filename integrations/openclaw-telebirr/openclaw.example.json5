@@ -1,0 +1,30 @@
+{
+  plugins: {
+    entries: {
+      deepseek: { enabled: true },
+      "telebirr-operations": { enabled: true }
+    }
+  },
+  agents: {
+    defaults: {
+      model: { primary: "deepseek/deepseek-v4-flash" },
+      tools: {
+        allow: [
+          "telebirr_fleet_summary",
+          "telebirr_case_summary",
+          "telebirr_name_review"
+        ],
+        deny: ["exec", "nodes", "gateway", "fs_write", "fs_delete", "apply_patch"]
+      }
+    }
+  },
+  gateway: {
+    bind: "loopback",
+    auth: { mode: "token" },
+    http: {
+      endpoints: {
+        responses: { enabled: true, maxBodyBytes: 16384, files: { allowUrl: false }, images: { allowUrl: false } }
+      }
+    }
+  }
+}

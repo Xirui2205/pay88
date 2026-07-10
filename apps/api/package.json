@@ -1,0 +1,60 @@
+{
+  "name": "@telebirr/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "build": "npm run prisma:generate && nest build",
+    "start": "node dist/main.js",
+    "start:dev": "nest start --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "npm run prisma:generate && tsc --noEmit -p tsconfig.build.json",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:deploy": "prisma migrate deploy",
+    "prisma:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@aws-sdk/client-s3": "^3.1084.0",
+    "@nestjs/common": "^11.0.11",
+    "@nestjs/config": "^4.0.0",
+    "@nestjs/core": "^11.0.11",
+    "@nestjs/platform-express": "^11.0.11",
+    "@nestjs/schedule": "^5.0.1",
+    "@nestjs/swagger": "^11.0.6",
+    "@nestjs/websockets": "^11.0.11",
+    "@prisma/client": "^6.4.1",
+    "@telebirr/contracts": "*",
+    "amqplib": "^0.10.5",
+    "argon2": "^0.41.1",
+    "class-transformer": "^0.5.1",
+    "class-validator": "^0.14.1",
+    "helmet": "^8.0.0",
+    "ioredis": "^5.4.2",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.2",
+    "swagger-ui-express": "^5.0.1",
+    "ws": "^8.18.1",
+    "yaml": "^2.9.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@nestjs/cli": "^11.0.5",
+    "@nestjs/testing": "^11.0.11",
+    "@types/amqplib": "^0.10.7",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.13.4",
+    "@types/supertest": "^6.0.2",
+    "@types/swagger-ui-express": "^4.1.8",
+    "@types/ws": "^8.5.14",
+    "prisma": "^6.4.1",
+    "supertest": "^7.0.0",
+    "tsx": "^4.19.3",
+    "typescript": "^5.7.3",
+    "vitest": "^3.0.7"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
+  }
+}

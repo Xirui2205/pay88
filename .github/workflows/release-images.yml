@@ -1,0 +1,103 @@
+name: release immutable images
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+
+concurrency:
+  group: image-release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://telebirr:telebirr@127.0.0.1:5432/telebirr?schema=public
+      TZ: Africa/Addis_Ababa
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run prisma:generate
+      - run: npx tsc -p packages/contracts/tsconfig.json --noEmit
+      - run: npx tsc -p apps/api/tsconfig.json --noEmit --incremental false
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+
+  publish:
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: api
+            dockerfile: apps/api/Dockerfile
+            target: runtime
+            build_args: |
+              BUILD_REVISION=${{ github.sha }}
+              BUILD_VERSION=${{ github.ref_name }}
+              BUILD_SOURCE=${{ github.server_url }}/${{ github.repository }}
+          - component: api-migration
+            dockerfile: apps/api/Dockerfile
+            target: migration
+            build_args: ''
+          - component: admin
+            dockerfile: infra/docker/web.Dockerfile
+            target: runtime
+            build_args: |
+              APP=admin
+              VITE_API_BASE_URL=${{ vars.PUBLIC_API_BASE_URL || '/v1' }}
+          - component: merchant
+            dockerfile: infra/docker/web.Dockerfile
+            target: runtime
+            build_args: |
+              APP=merchant
+              VITE_API_BASE_URL=${{ vars.PUBLIC_API_BASE_URL || '/v1' }}
+          - component: checkout
+            dockerfile: infra/docker/web.Dockerfile
+            target: runtime
+            build_args: |
+              APP=checkout
+              VITE_API_BASE_URL=${{ vars.PUBLIC_API_BASE_URL || '/v1' }}
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/${{ github.repository }}-${{ matrix.component }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-
+      - uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          target: ${{ matrix.target }}
+          build-args: ${{ matrix.build_args }}
+          push: true
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          provenance: mode=max
+          sbom: true

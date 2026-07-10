@@ -1,0 +1,97 @@
+{
+  "schema_version": "1.0.0",
+  "key_id": "fixture-p256-v1",
+  "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQTQRchW+lqB7sgNUTuEBZdyPMlR5\nugPfsOstay/c3970JiwVOrdjc5YBM6k/MNvL8hil8kSxMH5Ms8enTyXwvw==\n-----END PUBLIC KEY-----\n",
+  "activation_request": {
+    "activation_code": "FIXTURE-CODE-ONLY",
+    "installation_id": "fixture-installation-id",
+    "hardware_serial": "fixture-hardware-serial",
+    "certificate_alias": "fixture-mdm-client-cert",
+    "protocol_version": "1",
+    "manufacturer": "TECNO",
+    "model": "TECNO CAMON 18 Premier",
+    "android_release": "12",
+    "android_sdk": 31,
+    "app_version": "1.0.0",
+    "build_fingerprint": "TECNO/CH9n/TECNO-CH9n:12/fixture:user/release-keys"
+  },
+  "activation_response": {
+    "status": "success",
+    "message": "Device activated",
+    "code": "ok",
+    "data": {
+      "device_id": "11111111-1111-4111-8111-111111111111",
+      "device_token": "fixture_device_token_abcdefghijklmnopqrstuvwxyz0123456789",
+      "websocket_url": "wss://devices.example.test/v1/device/connect",
+      "heartbeat_interval_seconds": 30,
+      "key_id": "fixture-p256-v1",
+      "signing_public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEQTQRchW+lqB7sgNUTuEBZdyPMlR5\nugPfsOstay/c3970JiwVOrdjc5YBM6k/MNvL8hil8kSxMH5Ms8enTyXwvw==\n-----END PUBLIC KEY-----\n",
+      "sims": [
+        {"iccid":"8992510112345678901","telebirr_number":"0911223344","registered_name":"Jane Smith","expected_slot_index":0},
+        {"iccid":"8992510198765432109","telebirr_number":"0922334455","registered_name":"Abebe Kebede","expected_slot_index":1}
+      ]
+    },
+    "request_id": "44444444-4444-4444-8444-444444444444"
+  },
+  "signed_job_envelope": {
+    "key_id": "fixture-p256-v1",
+    "payload_base64": "eyJhbW91bnRfZXRiIjoiMTAwLjAwIiwiYXR0ZW1wdCI6MSwiZGVzdGluYXRpb25fcGhvbmUiOiIrMjUxOTExMjIzMzQ0IiwiZGV2aWNlX2lkIjoiMTExMTExMTEtMTExMS00MTExLTgxMTEtMTExMTExMTExMTExIiwiZXhwZWN0ZWRfcmVjZWl2ZXJfbmFtZSI6IkphbmUgU21pdGgiLCJmZW5jaW5nX3Rva2VuIjo0MiwiZmluYW5jaWFsX29wZXJhdGlvbl9pZCI6IjMzMzMzMzMzLTMzMzMtNDMzMy04MzMzLTMzMzMzMzMzMzMzMyIsImlzc3VlZF9hdF9tcyI6MTc4MzY3MDQwMDAwMCwiam9iX2V4cGlyZXNfYXRfbXMiOjE3ODM2NzEwMDAwMDAsImpvYl9pZCI6IjIyMjIyMjIyLTIyMjItNDIyMi04MjIyLTIyMjIyMjIyMjIyMiIsImxlYXNlX2V4cGlyZXNfYXRfbXMiOjE3ODM2NzA0NDUwMDAsInByb2ZpbGVfaWQiOiJ0ZWxlYmlyci5zZW5kLW1vbmV5LnYxIiwicHJvZmlsZV92ZXJzaW9uIjoxLCJzaW1faWNjaWQiOiI4OTkyNTEwMTEyMzQ1Njc4OTAxIiwidHlwZSI6ImN1c3RvbWVyX3dpdGhkcmF3YWwifQ==",
+    "signature_base64": "MEUCIGIZHl5spyq9qraS6/Aj3Vo57fEkMXOk66hx++3quGETAiEAoPPi7oinl5Mo8jkIFrdBzmofeCDqpKyDoXkB4t4cwls="
+  },
+  "decoded_job_payload": {
+    "amount_etb":"100.00","attempt":1,"destination_phone":"+251911223344",
+    "device_id":"11111111-1111-4111-8111-111111111111","expected_receiver_name":"Jane Smith",
+    "fencing_token":42,"financial_operation_id":"33333333-3333-4333-8333-333333333333",
+    "issued_at_ms":1783670400000,"job_expires_at_ms":1783671000000,
+    "job_id":"22222222-2222-4222-8222-222222222222","lease_expires_at_ms":1783670445000,
+    "profile_id":"telebirr.send-money.v1","profile_version":1,"sim_iccid":"8992510112345678901",
+    "type":"customer_withdrawal"
+  },
+  "signed_profile_envelope": {
+    "key_id": "fixture-p256-v1",
+    "payload_base64": "eyJpbml0aWFsX3N0ZXBfaWQiOiJtYWluLXNlbmQtbWVudSIsImxhYmVsX2FsaWFzZXMiOnsiY29uZmlybSI6WyJDT05GSVJNIiwiWUVTIiwiT0siXSwic2VuZF9tb25leSI6WyJTRU5EIE1PTkVZIiwiVFJBTlNGRVIgTU9ORVkiXX0sIm9wZXJhdGlvbiI6IndpdGhkcmF3YWwiLCJwcm9maWxlX2lkIjoidGVsZWJpcnIuc2VuZC1tb25leS52MSIsInJlY2lwaWVudF9uYW1lX3BhdHRlcm5zIjpbIig/aXUpXFxidG9cXHMrWyswLTkqKCkgLV17OCwyNH1cXHMrKFtcXHB7TH1dW1xccHtMfVxccHtNfSAuJ1xcLV17MSw4MH0/KSg/PVxccyooPzpcXG58Y29uZmlybXxbMTBdWy4pXXwkKSkiLCIoP2l1KVxcYnRvXFxzKyhbXFxwe0x9XVtcXHB7TH1cXHB7TX0gLidcXC1dezEsODB9PykoPzpcXHMqXFwofFxcbnwsfCQpIiwiKD9pdSlyZWNlaXZlcig/OiBuYW1lKT9cXHMqWzo9XFwtXVxccyooW1xccHtMfV1bXFxwe0x9XFxwe019IC4nXFwtXXsxLDgwfT8pKD86XFxufCx8JCkiXSwic3RlcHMiOlt7ImV4cGVjdGF0aW9uIjp7InJlcXVpcmVkX2FueSI6WyJTRU5EIiwiVFJBTlNGRVIiXX0sImlkIjoibWFpbi1zZW5kLW1lbnUiLCJuZXh0X3N0ZXBfaWQiOiJzZW5kLXN1Ym1lbnUiLCJyZXNwb25zZSI6eyJzZWxlY3RfYWN0aW9uIjoic2VuZF9tb25leSIsInR5cGUiOiJzZWxlY3RfbWVudSJ9fSx7ImV4cGVjdGF0aW9uIjp7InJlcXVpcmVkX2FueSI6WyJTRU5EIE1PTkVZIiwiVFJBTlNGRVIgTU9ORVkiXX0sImlkIjoic2VuZC1zdWJtZW51IiwibmV4dF9zdGVwX2lkIjoiZGVzdGluYXRpb24iLCJyZXNwb25zZSI6eyJzZWxlY3RfYWN0aW9uIjoic2VuZF9tb25leSIsInR5cGUiOiJzZWxlY3RfbWVudSJ9fSx7ImV4cGVjdGF0aW9uIjp7InJlcXVpcmVkX2FueSI6WyJNT0JJTEUgTlVNQkVSIiwiUkVDRUlWRVIiLCJQSE9ORSBOVU1CRVIiXX0sImlkIjoiZGVzdGluYXRpb24iLCJuZXh0X3N0ZXBfaWQiOiJ2ZXJpZnktcmVjaXBpZW50IiwicmVzcG9uc2UiOnsiaW5wdXRfdmFsdWUiOiJkZXN0aW5hdGlvbl9waG9uZSIsInR5cGUiOiJlbnRlcl92YWx1ZSJ9fSx7ImV4cGVjdGF0aW9uIjp7InJlcXVpcmVkX2FueSI6WyJDT05GSVJNIiwiUkVDRUlWRVIiLCJOQU1FIl19LCJpZCI6InZlcmlmeS1yZWNpcGllbnQiLCJuZXh0X3N0ZXBfaWQiOiJhbW91bnQiLCJyZXNwb25zZSI6eyJzZWxlY3RfYWN0aW9uIjoiY29uZmlybSIsInR5cGUiOiJ2ZXJpZnlfcmVjaXBpZW50X2FuZF9zZWxlY3QifX0seyJleHBlY3RhdGlvbiI6eyJyZXF1aXJlZF9hbnkiOlsiRU5URVIgQU1PVU5UIiwiQU1PVU5UIl19LCJpZCI6ImFtb3VudCIsIm5leHRfc3RlcF9pZCI6ImNvbW1lbnQiLCJyZXNwb25zZSI6eyJpbnB1dF92YWx1ZSI6ImFtb3VudF9ldGIiLCJ0eXBlIjoiZW50ZXJfdmFsdWUifX0seyJleHBlY3RhdGlvbiI6eyJyZXF1aXJlZF9hbnkiOlsiQ09NTUVOVCIsIlJFTUFSSyIsIlJFRkVSRU5DRSJdfSwiaWQiOiJjb21tZW50IiwibmV4dF9zdGVwX2lkIjoiZmluYWwtY29uZmlybSIsInJlc3BvbnNlIjp7ImlucHV0X3ZhbHVlIjoiZW1wdHlfdGV4dCIsInR5cGUiOiJlbnRlcl92YWx1ZSJ9fSx7ImV4cGVjdGF0aW9uIjp7InJlcXVpcmVkX2FueSI6WyJDT05GSVJNIiwiVFJBTlNGRVIiLCJTRU5EIl19LCJpZCI6ImZpbmFsLWNvbmZpcm0iLCJuZXh0X3N0ZXBfaWQiOiJwaW4iLCJyZXNwb25zZSI6eyJzZWxlY3RfYWN0aW9uIjoiY29uZmlybSIsInR5cGUiOiJzZWxlY3RfbWVudSJ9fSx7ImV4cGVjdGF0aW9uIjp7InJlcXVpcmVkX2FueSI6WyJFTlRFUiBQSU4iLCJQSU4iXX0sImlkIjoicGluIiwibmV4dF9zdGVwX2lkIjoicHJvdmlkZXItcmVzdWx0IiwicmVzcG9uc2UiOnsiZmluYW5jaWFsX2NvbW1pdCI6dHJ1ZSwidHlwZSI6InN1Ym1pdF9sb2NhbF9waW4ifX0seyJleHBlY3RhdGlvbiI6eyJyZXF1aXJlZF9hbnkiOlsiUFJPQ0VTUyIsIldBSVQiLCJSRVFVRVNUIl19LCJpZCI6InByb3ZpZGVyLXJlc3VsdCIsInJlc3BvbnNlIjp7InR5cGUiOiJ3YWl0X2Zvcl9wcm92aWRlciJ9fV0sInRlcm1pbmFsX21hcmtlcnMiOnsiZmFpbHVyZV9hbnkiOlsiRkFJTEVEIiwiREVDTElORUQiLCJJTlNVRkZJQ0lFTlQiLCJJTlZBTElEIFBJTiJdLCJzdWNjZXNzX2FueSI6WyJTVUNDRVNTRlVMIiwiQ09NUExFVEVEIl19LCJ2ZXJzaW9uIjoxfQ==",
+    "signature_base64": "MEYCIQDXEzMU44/B3lTJgDWxKFn3XIdm0fayTbhoRCHAVl379QIhANpoK38C43gK6Eoe+/1i/s8kTB8XFgIOetRRWiORhFAB"
+  },
+  "expected_profile": {
+    "profile_id":"telebirr.send-money.v1","version":1,"operation":"withdrawal",
+    "step_ids":["main-send-menu","send-submenu","destination","verify-recipient","amount","comment","final-confirm","pin","provider-result"],
+    "commit_step_id":"pin"
+  },
+  "signed_lease_renewal_envelope": {
+    "key_id":"fixture-p256-v1",
+    "payload_base64":"eyJkZXZpY2VfaWQiOiIxMTExMTExMS0xMTExLTQxMTEtODExMS0xMTExMTExMTExMTEiLCJmZW5jaW5nX3Rva2VuIjo0MiwiaXNzdWVkX2F0X21zIjoxNzgzNjcwNDMwMDAwLCJqb2JfaWQiOiIyMjIyMjIyMi0yMjIyLTQyMjItODIyMi0yMjIyMjIyMjIyMjIiLCJsZWFzZV9leHBpcmVzX2F0X21zIjoxNzgzNjcwNDc1MDAwfQ==",
+    "signature_base64":"MEUCIA8BgiFyMCpLJuH/6kpU44gF5Sj6T8KNX0GISKRca8+rAiEA7QitfkFj2VNdaw8vRmoyMlCHhdd+EnhLhex8f2qOy98="
+  },
+  "decoded_lease_renewal_payload": {
+    "device_id":"11111111-1111-4111-8111-111111111111","fencing_token":42,
+    "issued_at_ms":1783670430000,"job_id":"22222222-2222-4222-8222-222222222222",
+    "lease_expires_at_ms":1783670475000
+  },
+  "websocket_examples": {
+    "server_wrappers": {
+      "profile":"{\"type\":\"profile_install\",\"envelope\":<signed_profile_envelope>}",
+      "job":"{\"type\":\"job\",\"envelope\":<signed_job_envelope>}",
+      "renewal":"{\"type\":\"lease_renewal\",\"envelope\":<signed_lease_renewal_envelope>}"
+    },
+    "client_hello":{"type":"hello","device_id":"11111111-1111-4111-8111-111111111111","protocol_version":"1"},
+    "client_lease_renewal_request":{"type":"lease_renewal_request","job_id":"22222222-2222-4222-8222-222222222222","fencing_token":42},
+    "client_heartbeat": {
+      "type":"heartbeat",
+      "payload": {
+        "device_id":"11111111-1111-4111-8111-111111111111","sent_at_ms":1783670430000,
+        "agent_version":"1.0.0","app_version":"1.0.0","protocol_version":"1",
+        "android_sdk":31,"android_version":"12","build_fingerprint":"TECNO/CH9n/TECNO-CH9n:12/fixture:user/release-keys",
+        "manufacturer":"TECNO","model":"TECNO CAMON 18 Premier","battery_percent":83,"charging":true,
+        "temperature_celsius":31.4,"network_type":"cellular","accessibility_ok":true,"permissions_ok":true,
+        "openclaw_paired":true,"permissions":{"receive_sms":true,"read_phone_state":true,"read_phone_numbers":true,"call_phone":true},
+        "ussd_profile_version":"telebirr.send-money.v1@1","profiles":[{"id":"telebirr.send-money.v1","version":1}],
+        "sims":[{"iccid":"8992510112345678901","iccid_hash":"fixture-iccid-hash","telebirr_number":"0911223344","number_suffix":"3344","registered_name":"JANE SMITH","slot_index":0,"subscription_id":1,"state":"ACTIVE","customer_e_money_minor":5000000,"incentive_minor":1000,"fuel_payment_minor":null,"pocket_money_minor":null,"balance_captured_at_ms":1783670400000,"balance_source":"BALANCE_QUERY_SMS"}]
+      }
+    },
+    "client_spool_batch": {
+      "type":"spool_batch","device_id":"11111111-1111-4111-8111-111111111111",
+      "events":[{"id":"55555555-5555-4555-8555-555555555555","kind":"JOB_STATUS","created_at_ms":1783670435000,"payload":{"job_id":"22222222-2222-4222-8222-222222222222","financial_operation_id":"33333333-3333-4333-8333-333333333333","fencing_token":42,"state":"committed","observed_at_ms":1783670435000,"error_code":"pin_submitted","attempt":1,"profile_id":"telebirr.send-money.v1","profile_version":1,"provider_transaction_id":null}}]
+    },
+    "server_spool_ack":{"type":"spool_ack","event_ids":["55555555-5555-4555-8555-555555555555"]}
+  }
+}

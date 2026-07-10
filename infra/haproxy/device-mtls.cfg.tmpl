@@ -1,0 +1,25 @@
+global
+  log stdout format raw local0
+  maxconn 4096
+
+defaults
+  log global
+  mode http
+  option httplog
+  timeout connect 5s
+  timeout client 65s
+  timeout server 65s
+
+frontend device_mtls
+  bind :3443 ssl crt /run/secrets/device-ingress.pem ca-file /run/secrets/device-client-ca.pem verify required alpn http/1.1
+  http-request deny unless { path_beg /v1/device/ }
+  http-request del-header x-client-cert-verified
+  http-request del-header x-client-cert-sha256
+  http-request del-header x-device-ingress-secret
+  http-request set-header x-client-cert-verified SUCCESS if { ssl_c_verify 0 }
+  http-request set-header x-client-cert-sha256 %[ssl_c_der,sha2(256),hex,lower]
+  http-request set-header x-device-ingress-secret ${DEVICE_MTLS_PROXY_SECRET}
+  default_backend telebirr_api
+
+backend telebirr_api
+  server api 127.0.0.1:3000 check

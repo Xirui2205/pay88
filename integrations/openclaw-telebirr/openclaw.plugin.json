@@ -1,0 +1,20 @@
+{
+  "id": "telebirr-operations",
+  "name": "Telebirr Operations (Advisory)",
+  "description": "Read-only fleet and reconciliation tools plus approval proposal creation. It cannot execute money movement.",
+  "contracts": {
+    "tools": [
+      "telebirr_fleet_summary",
+      "telebirr_case_summary",
+      "telebirr_name_review",
+      "telebirr_propose_action"
+    ]
+  },
+  "activation": {
+    "onStartup": true
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false
+  }
+}
