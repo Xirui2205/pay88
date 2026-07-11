@@ -16,6 +16,11 @@
     <string name="activating">Activating…</string>
     <string name="activated_device">Activated: %1$s</string>
     <string name="activation_failed">Activation failed</string>
+    <string name="test_ussd_sim_1">Test *127# on SIM 1</string>
+    <string name="test_ussd_sim_2">Test *127# on SIM 2</string>
+    <string name="test_ussd_started">USSD started on SIM %1$d</string>
+    <string name="test_ussd_failed">Could not start USSD on SIM %1$d</string>
+    <string name="test_ussd_no_sim">No active subscription found in SIM slot %1$d</string>
     <string name="local_pin_stored">Local PIN stored for SIM ending %1$s</string>
     <string name="pin_fields_required">SIM ICCID, Telebirr PIN, and PIN confirmation are required</string>
     <string name="pin_confirmation_mismatch">Telebirr PIN and confirmation do not match</string>

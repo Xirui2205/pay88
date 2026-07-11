@@ -16,28 +16,32 @@ const activationRequest: ActivationRequest = {
   build_fingerprint: 'TECNO/test/release-keys',
 };
 
-describe('device activation hardware identity', () => {
-  it('returns a conflict without consuming the code when the handset belongs to another record', async () => {
+describe('device activation pilot reassignment', () => {
+  it('moves a handset binding from a failed record and consumes the new code', async () => {
     const transaction = {
       deviceActivationCode: {
         findFirst: vi.fn().mockResolvedValue({ id: 'code-1', deviceId: 'new-device' }),
-        updateMany: vi.fn(),
+        updateMany: vi.fn().mockResolvedValue({ count: 1 }),
       },
       device: {
         findFirst: vi.fn().mockResolvedValue({ id: 'old-device' }),
-        update: vi.fn(),
+        update: vi.fn()
+          .mockResolvedValueOnce({})
+          .mockResolvedValueOnce({ id: 'new-device', sims: [] }),
       },
+      simWallet: { updateMany: vi.fn().mockResolvedValue({ count: 2 }) },
     };
     const prisma = {
       $transaction: vi.fn(async (callback: (client: typeof transaction) => unknown) => callback(transaction)),
     };
     const service = new DeviceJobsService(prisma as never, {} as never, {} as never, {} as never);
 
-    await expect(service.activate(activationRequest)).rejects.toMatchObject({
-      code: 'hardware_already_enrolled',
-      status: 409,
+    await expect(service.activate(activationRequest)).resolves.toMatchObject({ device_id: 'new-device' });
+    expect(transaction.deviceActivationCode.updateMany).toHaveBeenCalled();
+    expect(transaction.device.update).toHaveBeenCalledTimes(2);
+    expect(transaction.simWallet.updateMany).toHaveBeenCalledWith({
+      where: { deviceId: 'old-device' },
+      data: { status: 'pending' },
     });
-    expect(transaction.deviceActivationCode.updateMany).not.toHaveBeenCalled();
-    expect(transaction.device.update).not.toHaveBeenCalled();
   });
 });

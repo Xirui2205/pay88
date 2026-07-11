@@ -22,6 +22,7 @@ import com.telebirr.gateway.agent.pin.LocalPinEnrollmentValidation
 import com.telebirr.gateway.agent.pin.LocalPinEnrollmentValidator
 import com.telebirr.gateway.agent.service.HeartbeatService
 import com.telebirr.gateway.agent.transport.MtlsOkHttpClientFactory
+import com.telebirr.gateway.agent.ussd.AndroidUssdDialer
 import kotlinx.coroutines.launch
 import java.util.concurrent.TimeUnit
 
@@ -75,20 +76,20 @@ class ActivationActivity : AppCompatActivity() {
                             buildFingerprint = Build.FINGERPRINT,
                         ),
                     )
-                    val activeSubscriptions = application.container.subscriptionResolver.active()
                     response.sims.forEach { enrolled ->
-                        val observed = activeSubscriptions.singleOrNull { it.iccid == enrolled.iccid }
-                            ?: error("Enrolled SIM is not uniquely present")
-                        check(observed.slotIndex == enrolled.expectedSlotIndex) {
-                            "Enrolled SIM is in the wrong slot"
-                        }
+                        // Pilot mode: the admin enrollment is authoritative. Android 12
+                        // may hide ICCID from a non-DPC application even when Phone
+                        // permission is granted, so bind by the configured slot and let
+                        // the resolver refresh the transient subscription ID later.
+                        val subscriptionId = application.container.subscriptionResolver
+                            .activeSubscriptionIdForSlot(enrolled.expectedSlotIndex) ?: -1
                         application.container.simEnrollments.enroll(
                             iccid = enrolled.iccid,
                             telebirrNumber = enrolled.telebirrNumber,
                             accountName = enrolled.registeredName,
                             expectedSlot = enrolled.expectedSlotIndex,
-                            observedSlot = observed.slotIndex,
-                            subscriptionId = observed.subscriptionId,
+                            observedSlot = enrolled.expectedSlotIndex,
+                            subscriptionId = subscriptionId,
                         )
                     }
                     application.container.config.saveActivation(
@@ -115,6 +116,24 @@ class ActivationActivity : AppCompatActivity() {
                 codeField.text.clear()
             }
         }
+
+        fun testUssd(slotIndex: Int) {
+            lifecycleScope.launch {
+                val subscriptionId = application.container.subscriptionResolver
+                    .activeSubscriptionIdForSlot(slotIndex)
+                if (subscriptionId == null) {
+                    status.text = getString(R.string.test_ussd_no_sim, slotIndex + 1)
+                    return@launch
+                }
+                val started = AndroidUssdDialer(this@ActivationActivity).dial("*127#", subscriptionId)
+                status.text = getString(
+                    if (started) R.string.test_ussd_started else R.string.test_ussd_failed,
+                    slotIndex + 1,
+                )
+            }
+        }
+        findViewById<Button>(R.id.testUssdSim1Button).setOnClickListener { testUssd(0) }
+        findViewById<Button>(R.id.testUssdSim2Button).setOnClickListener { testUssd(1) }
 
         findViewById<Button>(R.id.savePinButton).setOnClickListener {
             val iccidField = findViewById<EditText>(R.id.iccid)

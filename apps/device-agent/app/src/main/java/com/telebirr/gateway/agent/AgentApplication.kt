@@ -42,7 +42,7 @@ class AgentContainer(val application: Application) {
     val balanceSnapshots = BalanceSnapshotRepository(database.agentDao())
     val balanceLeases = BalanceQueryLeaseRepository(database.agentDao())
     val simEnrollments = SimEnrollmentRepository(database.agentDao(), localCipher)
-    val subscriptionResolver = AndroidSubscriptionResolver(application, database.agentDao())
+    val subscriptionResolver = AndroidSubscriptionResolver(application, database.agentDao(), localCipher)
 
     @Volatile private var runtime: RuntimeComponents? = null
 

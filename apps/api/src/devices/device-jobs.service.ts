@@ -147,11 +147,22 @@ export class DeviceJobsService {
         select: { id: true },
       });
       if (existingHardware) {
-        throw new ApiException(
-          'hardware_already_enrolled',
-          'This handset is already attached to another phone record; delete the failed enrollment or recover the existing phone before retrying',
-          HttpStatus.CONFLICT,
-        );
+        // Pilot mode: move the handset binding to the new activation record so
+        // a failed proof-of-concept enrollment cannot permanently block USSD testing.
+        await transaction.device.update({
+          where: { id: existingHardware.id },
+          data: {
+            hardwareSerial: null,
+            authTokenHash: null,
+            certificateFingerprint: null,
+            activeUssdJobId: null,
+            status: 'offline',
+          },
+        });
+        await transaction.simWallet.updateMany({
+          where: { deviceId: existingHardware.id },
+          data: { status: 'pending' },
+        });
       }
       const claim = await transaction.deviceActivationCode.updateMany({
         where: { id: activation.id, consumedAt: null, expiresAt: { gt: new Date() } },

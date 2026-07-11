@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
+import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 
 interface UssdDialer {
@@ -16,6 +17,7 @@ interface UssdDialer {
 /** Phone-account/subscription mapping must be qualified on the exact OEM build. */
 class AndroidUssdDialer(private val context: Context) : UssdDialer {
     private val telecom = context.getSystemService(TelecomManager::class.java)
+    private val subscriptions = context.getSystemService(SubscriptionManager::class.java)
 
     override fun dial(shortCode: String, subscriptionId: Int): Boolean {
         require(shortCode.matches(Regex("\\*[0-9*]+#")))
@@ -24,10 +26,15 @@ class AndroidUssdDialer(private val context: Context) : UssdDialer {
         ) return false
         val handles = runCatching { telecom.callCapablePhoneAccounts }.getOrDefault(emptyList())
         val matching = handles.filter { subscriptionId(it) == subscriptionId }
-        if (matching.size != 1) return false
+        val selected = matching.singleOrNull() ?: runCatching {
+            val slot = subscriptions.activeSubscriptionInfoList.orEmpty()
+                .singleOrNull { it.subscriptionId == subscriptionId }
+                ?.simSlotIndex
+            slot?.let(handles::getOrNull)
+        }.getOrNull() ?: return false
         return runCatching {
             val extras = Bundle().apply {
-                putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, matching.single())
+                putParcelable(TelecomManager.EXTRA_PHONE_ACCOUNT_HANDLE, selected)
             }
             telecom.placeCall(Uri.fromParts("tel", shortCode, null), extras)
             true

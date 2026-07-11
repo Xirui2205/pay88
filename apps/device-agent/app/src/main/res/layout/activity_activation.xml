@@ -55,6 +55,20 @@
             android:layout_marginTop="12dp"
             android:text="@string/not_activated" />
 
+        <Button
+            android:id="@+id/testUssdSim1Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/test_ussd_sim_1" />
+
+        <Button
+            android:id="@+id/testUssdSim2Button"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/test_ussd_sim_2" />
+
         <View
             android:layout_width="match_parent"
             android:layout_height="1dp"

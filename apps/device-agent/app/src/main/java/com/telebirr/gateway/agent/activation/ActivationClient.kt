@@ -27,8 +27,13 @@ class ActivationClient(
                 .header("Accept", "application/json")
                 .build()
             httpClient.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "Activation rejected (${response.code})" }
                 val responseBody = requireNotNull(response.body).string()
+                if (!response.isSuccessful) {
+                    val message = runCatching {
+                        json.decodeFromString<ActivationEnvelope>(responseBody).message
+                    }.getOrNull()
+                    error(message ?: "Activation rejected (${response.code})")
+                }
                 val envelope = json.decodeFromString<ActivationEnvelope>(responseBody)
                 require(envelope.status == "success" && envelope.code == "ok") {
                     "Activation response was not successful"

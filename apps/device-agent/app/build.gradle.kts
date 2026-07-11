@@ -26,8 +26,8 @@ android {
         // Android 12 is the qualified V1 production target. The code intentionally
         // keeps API 26 compatibility for a future agent-only fleet.
         targetSdk = 31
-        versionCode = 5
-        versionName = "1.1.2"
+        versionCode = 6
+        versionName = "1.1.3-poc"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true

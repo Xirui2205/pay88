@@ -8,7 +8,10 @@ import android.telephony.SubscriptionInfo
 import android.telephony.SubscriptionManager
 import androidx.core.content.ContextCompat
 import com.telebirr.gateway.agent.crypto.CryptoEncoding
+import com.telebirr.gateway.agent.crypto.EncryptedPayload
+import com.telebirr.gateway.agent.crypto.PayloadCipher
 import com.telebirr.gateway.agent.db.AgentDao
+import com.telebirr.gateway.agent.db.SimIdentityEntity
 import java.time.Clock
 
 data class ResolvedSubscription(
@@ -28,12 +31,14 @@ interface SubscriptionResolver {
     suspend fun resolve(intent: Intent): SubscriptionAttribution
     suspend fun qualified(iccid: String): SubscriptionAttribution
     suspend fun active(): List<ResolvedSubscription>
+    suspend fun activeSubscriptionIdForSlot(slotIndex: Int): Int?
 }
 
 /** Fails closed if vendor extras, subscription ID, slot, ICCID, and enrollment disagree. */
 class AndroidSubscriptionResolver(
     private val context: Context,
     private val dao: AgentDao,
+    private val cipher: PayloadCipher,
     private val clock: Clock = Clock.systemUTC(),
 ) : SubscriptionResolver {
     private val manager = context.getSystemService(SubscriptionManager::class.java)
@@ -74,10 +79,20 @@ class AndroidSubscriptionResolver(
             return SubscriptionAttribution.Uncertain("invalid_requested_iccid")
         }
         val hash = CryptoEncoding.sha256Hex(iccid)
+        val enrollment = dao.simIdentity(hash)
+        if (enrollment != null && enrollment.state == "ACTIVE") {
+            val bySlot = activeInfos().filter { it.simSlotIndex == enrollment.expectedSlotIndex }
+            if (bySlot.size == 1) {
+                val info = bySlot.single()
+                dao.updateSubscriptionObservation(hash, info.subscriptionId, info.simSlotIndex, clock.millis())
+                return SubscriptionAttribution.Resolved(
+                    ResolvedSubscription(info.subscriptionId, info.simSlotIndex, iccid, hash),
+                )
+            }
+        }
         val candidates = activeInfos().filter { it.iccId?.trim() == iccid }
         if (candidates.size != 1) {
-            dao.quarantineSim(hash, clock.millis())
-            return SubscriptionAttribution.Quarantined(hash, "enrolled_sim_missing_or_duplicated")
+            return SubscriptionAttribution.Uncertain("pilot_slot_subscription_unavailable")
         }
         return validate(candidates.single())
     }
@@ -112,15 +127,31 @@ class AndroidSubscriptionResolver(
         )
     }
 
-    override suspend fun active(): List<ResolvedSubscription> = activeInfos().mapNotNull { info ->
-        val iccid = info.iccId?.trim().orEmpty()
-        if (!iccid.matches(Regex("[0-9]{10,24}"))) null else ResolvedSubscription(
-            info.subscriptionId,
-            info.simSlotIndex,
-            iccid,
-            CryptoEncoding.sha256Hex(iccid),
-        )
+    override suspend fun active(): List<ResolvedSubscription> {
+        val enrolled = dao.simIdentities().filter { it.state == "ACTIVE" }
+        return activeInfos().mapNotNull { info ->
+            val saved = enrolled.singleOrNull { it.expectedSlotIndex == info.simSlotIndex }
+            val iccid = saved?.let(::decryptIccid)
+                ?: info.iccId?.trim().orEmpty().takeIf { it.matches(Regex("[0-9]{10,24}")) }
+                ?: return@mapNotNull null
+            ResolvedSubscription(
+                info.subscriptionId,
+                info.simSlotIndex,
+                iccid,
+                saved?.iccidHash ?: CryptoEncoding.sha256Hex(iccid),
+            )
+        }
     }
+
+    override suspend fun activeSubscriptionIdForSlot(slotIndex: Int): Int? =
+        activeInfos().singleOrNull { it.simSlotIndex == slotIndex }?.subscriptionId
+
+    private fun decryptIccid(identity: SimIdentityEntity): String? = runCatching {
+        cipher.decrypt(
+            EncryptedPayload(identity.iccidIv, identity.iccidCiphertext),
+            identity.iccidHash.toByteArray(),
+        ).toString(Charsets.UTF_8)
+    }.getOrNull()?.takeIf { it.matches(Regex("[0-9]{10,24}")) }
 
     private fun activeInfos(): List<SubscriptionInfo> {
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.READ_PHONE_STATE) !=

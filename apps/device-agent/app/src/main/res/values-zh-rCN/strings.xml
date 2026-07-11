@@ -16,6 +16,11 @@
     <string name="activating">正在激活…</string>
     <string name="activated_device">已激活：%1$s</string>
     <string name="activation_failed">激活失败</string>
+    <string name="test_ussd_sim_1">在 SIM 1 上测试 *127#</string>
+    <string name="test_ussd_sim_2">在 SIM 2 上测试 *127#</string>
+    <string name="test_ussd_started">已在 SIM %1$d 启动 USSD</string>
+    <string name="test_ussd_failed">无法在 SIM %1$d 启动 USSD</string>
+    <string name="test_ussd_no_sim">SIM 卡槽 %1$d 中没有活动订阅</string>
     <string name="local_pin_stored">已为尾号 %1$s 的 SIM 保存本机 PIN</string>
     <string name="pin_fields_required">必须填写 SIM ICCID、Telebirr PIN 和 PIN 确认</string>
     <string name="pin_confirmation_mismatch">Telebirr PIN 与确认 PIN 不一致</string>
