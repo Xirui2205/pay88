@@ -60,6 +60,7 @@ jobs:
             build_args: |
               APP=admin
               VITE_API_BASE_URL=${{ vars.PUBLIC_API_BASE_URL || '/v1' }}
+              VITE_BUILD_REVISION=${{ github.sha }}
           - component: merchant
             dockerfile: infra/docker/web.Dockerfile
             target: runtime

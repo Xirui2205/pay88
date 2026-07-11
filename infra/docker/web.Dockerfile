@@ -3,7 +3,9 @@ ARG NODE_IMAGE=node:22.20.0-bookworm-slim@sha256:b21fe589dfbe5cc39365d0544b9be3f
 FROM ${NODE_IMAGE} AS build
 ARG APP
 ARG VITE_API_BASE_URL=/v1
+ARG VITE_BUILD_REVISION=local
 ENV VITE_API_BASE_URL=${VITE_API_BASE_URL}
+ENV VITE_BUILD_REVISION=${VITE_BUILD_REVISION}
 WORKDIR /workspace
 
 COPY package.json package-lock.json tsconfig.base.json ./

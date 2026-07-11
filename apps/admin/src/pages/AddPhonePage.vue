@@ -12,6 +12,9 @@ const active = ref(0)
 const language = ref<'en'|'zh'>('en')
 const loading = ref(false)
 const online = ref(false)
+const deleteDialog = ref(false)
+const deleteReason = ref('Remove this phone and add it again')
+const deletePassword = ref('')
 const groups = ref<Array<{id:string;label:string}>>([])
 const locations = ref<Array<{id:string;label:string}>>([])
 const structureDialog = ref(false)
@@ -122,6 +125,21 @@ async function updateOnline(value:boolean|string|number) {
   } finally { loading.value = false }
 }
 
+async function deletePhone() {
+  if (!created.value?.id || deleteReason.value.trim().length < 10 || !deletePassword.value) {
+    ElMessage.warning('Enter your password and a reason')
+    return
+  }
+  loading.value = true
+  try {
+    await platform.deleteDevice(created.value.id, deleteReason.value.trim(), deletePassword.value)
+    deleteDialog.value = false
+    ElMessage.success('Phone deleted')
+    await router.replace('/fleet')
+  } catch (error) { ElMessage.error(error instanceof Error ? error.message : 'Could not delete phone') }
+  finally { loading.value = false }
+}
+
 function next() {
   if (active.value === 0) return createRecord()
   if (active.value === 1) active.value = 2
@@ -130,7 +148,7 @@ function next() {
 
 <template>
   <div class="page add-page">
-    <div class="page-heading"><div><p class="eyebrow">Fleet</p><h1>Add phone</h1><span class="muted">Add the SIM details, install the app, then set the phone online.</span></div><el-button @click="$router.push('/fleet')">Close</el-button></div>
+    <div class="page-heading"><div><p class="eyebrow">Fleet</p><h1>Add phone</h1><span class="muted">Add the SIM details, install the app, then set the phone online.</span></div><div class="toolbar"><el-button v-if="created?.id" type="danger" plain @click="deleteDialog=true">Delete phone</el-button><el-button @click="$router.push('/fleet')">Close</el-button></div></div>
     <el-steps :active="active" finish-status="success" simple class="steps"><el-step title="Phone details"/><el-step title="Install app"/><el-step title="Online status"/></el-steps>
 
     <section v-if="active===0" class="panel wizard">
@@ -159,6 +177,7 @@ function next() {
 
     <div v-if="active<2" class="wizard-actions"><el-button v-if="active===1" @click="active=0">Back</el-button><el-button type="primary" :loading="loading" @click="next">{{active===0?'Add phone':'Continue'}}</el-button></div>
     <el-dialog v-model="structureDialog" :title="structureMode==='location'?'Create location':'Create group'" width="min(500px,92vw)"><el-form label-position="top"><el-form-item v-if="structureMode==='group'" label="Location"><el-select v-model="structure.locationId" style="width:100%"><el-option v-for="location in locations" :key="location.id" :label="location.label" :value="location.id"/></el-select></el-form-item><el-form-item label="Code"><el-input v-model="structure.code"/></el-form-item><el-form-item label="Name"><el-input v-model="structure.name"/></el-form-item></el-form><template #footer><el-button @click="structureDialog=false">Cancel</el-button><el-button type="primary" :loading="loading" @click="saveStructure">Create</el-button></template></el-dialog>
+    <el-dialog v-model="deleteDialog" title="Delete phone" width="min(500px,92vw)"><el-alert title="This removes the phone and releases its SIM numbers so you can add them again." type="warning" :closable="false" show-icon/><el-form label-position="top" style="margin-top:16px"><el-form-item label="Reason"><el-input v-model="deleteReason"/></el-form-item><el-form-item label="Your password"><el-input v-model="deletePassword" type="password" show-password/></el-form-item></el-form><template #footer><el-button @click="deleteDialog=false">Cancel</el-button><el-button type="danger" :loading="loading" @click="deletePhone">Delete phone</el-button></template></el-dialog>
   </div>
 </template>
 

@@ -13,6 +13,7 @@ const platform = usePlatformStore()
 const collapsed = ref(false)
 const mobileOpen = ref(false)
 const isPrint = computed(() => Boolean(route.meta.print))
+const buildRevision = String(import.meta.env.VITE_BUILD_REVISION || 'local').slice(0, 8)
 
 const nav = [
   { path: '/', label: 'Overview', icon: DataAnalysis },
@@ -47,7 +48,7 @@ function openAlerts() { router.push('/settings') }
         <div class="brand-mark"><Histogram /></div>
         <div v-if="!collapsed" class="brand-type"><strong>OrbitPay</strong><span>Operations</span></div>
       </div>
-      <div v-if="!collapsed" class="environment"><span /> Live environment</div>
+      <div v-if="!collapsed" class="environment"><span /> Live environment <small>build {{ buildRevision }}</small></div>
       <nav>
         <button v-for="item in nav" :key="item.path" :class="{ active: route.path === item.path }" @click="navigate(item.path)">
           <el-icon><component :is="item.icon" /></el-icon>
@@ -90,6 +91,7 @@ function openAlerts() { router.push('/settings') }
 .brand-type span { font-size: 10px; color: #8992aa; text-transform: uppercase; letter-spacing: .14em; margin-top: 5px; }
 .environment { margin: 0 10px 20px; padding: 8px 10px; border: 1px solid #32394f; border-radius: 8px; font-size: 11px; }
 .environment span { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: #2ac09f; margin-right: 6px; }
+.environment small { display: block; margin: 5px 0 0 14px; color: #778198; font-size: 9px; }
 nav { display: flex; flex-direction: column; gap: 4px; }
 nav button, .sidebar-bottom button { width: 100%; min-height: 42px; display: flex; align-items: center; gap: 12px; color: #aeb6c9; border: 0; border-radius: 9px; background: transparent; text-align: left; cursor: pointer; padding: 0 12px; transition: .15s ease; }
 nav button:hover, .sidebar-bottom button:hover { background: #22283b; color: white; }
