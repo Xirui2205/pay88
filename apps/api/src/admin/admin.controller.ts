@@ -14,6 +14,8 @@ import { WithdrawalsService } from '../withdrawals/withdrawals.service';
 import { ConfigurationService } from '../configuration/configuration.service';
 import { SupportCasesService } from '../support/support-cases.service';
 import { changeSupportStatusSchema, supportMessageSchema, supportStatusSchema } from '../support/support-cases.schemas';
+import { DepositsService } from '../deposits/deposits.service';
+import { randomUUID } from 'node:crypto';
 
 const merchantSchema = z.object({ slug: z.string().regex(/^[a-z0-9-]{2,80}$/), name: z.string().min(2).max(200), owner_email: z.string().email().max(320), initial_test_balance: etbAmountSchema.optional() });
 const locationSchema = z.object({ code: z.string().regex(/^[A-Z0-9-]{2,40}$/), name: z.string().min(2).max(120) });
@@ -49,6 +51,20 @@ const merchantWithdrawalSchema = z.object({
 const resolveDepositSchema = z.object({ deposit_id: z.string().uuid(), reason: z.string().min(5).max(1000) });
 const qualificationCheckSchema = z.object({ status: z.enum(['passed', 'failed']), evidence_reference: z.string().trim().min(5).max(500), notes: z.string().trim().min(5).max(1000).optional() });
 const qualificationDecisionSchema = z.object({ reason: z.string().trim().min(10).max(1000) });
+const deviceOnlineSchema = z.object({ online: z.boolean() });
+const adminTestDepositSchema = z.object({
+  merchant_id: z.string().uuid(),
+  amount: etbAmountSchema,
+  first_name: z.string().trim().min(1).max(100),
+  last_name: z.string().trim().max(100).optional(),
+  phone_number: ethiopianPhoneSchema,
+});
+const adminTestWithdrawalSchema = z.object({
+  merchant_id: z.string().uuid(),
+  amount: etbAmountSchema,
+  account_number: ethiopianPhoneSchema,
+  expected_name: z.string().trim().min(2).max(200),
+});
 const cancelTransferSchema = z.object({ reason: z.string().trim().min(10).max(1000) });
 const treasuryWalletSchema = z.object({
   merchant_id: z.string().uuid().optional(),
@@ -89,6 +105,7 @@ const resolveTransferSchema = z.object({
 export class AdminController {
   constructor(
     private readonly admin: AdminService,
+    private readonly deposits: DepositsService,
     private readonly withdrawals: WithdrawalsService,
     private readonly configuration: ConfigurationService,
     private readonly supportCases: SupportCasesService,
@@ -219,6 +236,25 @@ export class AdminController {
     return success(request, await this.admin.regenerateActivationCode(z.string().uuid().parse(deviceId), request.platformAuth.staffId), 'New server-generated activation code created');
   }
 
+  @Get('fleet/devices/:deviceId')
+  async device(@Req() request: RequestWithContext, @Param('deviceId') deviceId: string) {
+    return success(request, await this.admin.device(z.string().uuid().parse(deviceId)));
+  }
+
+  @Post('fleet/devices/:deviceId/online')
+  @HttpCode(200)
+  async setDeviceOnline(
+    @Req() request: PlatformRequest,
+    @Param('deviceId') deviceId: string,
+    @Body(new ZodPipe(deviceOnlineSchema)) body: z.infer<typeof deviceOnlineSchema>,
+  ) {
+    return success(
+      request,
+      await this.admin.setDeviceOnline(z.string().uuid().parse(deviceId), body.online, request.platformAuth.staffId),
+      body.online ? 'Device is online' : 'Device is offline',
+    );
+  }
+
   @Get('fleet/devices/:deviceId/qualification')
   async qualification(@Req() request: RequestWithContext, @Param('deviceId') deviceId: string) {
     return success(request, await this.admin.qualification(z.string().uuid().parse(deviceId)));
@@ -248,6 +284,47 @@ export class AdminController {
 
   @Get('fleet')
   async fleet(@Req() request: RequestWithContext) { return success(request, await this.admin.fleet()); }
+
+  @Post('test/deposits')
+  async createTestDeposit(
+    @Req() request: PlatformRequest,
+    @Body(new ZodPipe(adminTestDepositSchema)) body: z.infer<typeof adminTestDepositSchema>,
+  ) {
+    const reference = `ADMIN-DEP-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const auth = { merchantId: body.merchant_id, environment: 'live' as const, apiKeyId: `admin-live-test:${request.platformAuth.staffId}` };
+    const result = await this.deposits.initialize(auth, {
+      amount: body.amount,
+      currency: 'ETB',
+      tx_ref: reference,
+      customer_id: `admin-test-${randomUUID()}`,
+      first_name: body.first_name,
+      last_name: body.last_name,
+      phone_number: body.phone_number,
+      metadata: { source: 'admin_live_test_console', actor_id: request.platformAuth.staffId },
+    }, reference);
+    return success(request, result, 'Test deposit created');
+  }
+
+  @Post('test/withdrawals')
+  async createTestWithdrawal(
+    @Req() request: PlatformRequest,
+    @Body(new ZodPipe(adminTestWithdrawalSchema)) body: z.infer<typeof adminTestWithdrawalSchema>,
+  ) {
+    const reference = `ADMIN-WD-${Date.now()}-${randomUUID().slice(0, 8)}`;
+    const auth = { merchantId: body.merchant_id, environment: 'live' as const, apiKeyId: `admin-live-test:${request.platformAuth.staffId}` };
+    const result = await this.withdrawals.create(auth, {
+      amount: body.amount,
+      currency: 'ETB',
+      reference,
+      customer_id: `admin-test-${randomUUID()}`,
+      destination_type: 'registered',
+      account_number: body.account_number,
+      expected_name: body.expected_name,
+      bank_code: '855',
+      metadata: { source: 'admin_live_test_console', actor_id: request.platformAuth.staffId },
+    }, reference);
+    return success(request, result, 'Test withdrawal created');
+  }
 
   @Get('treasury-wallets')
   async treasuryWallets(@Req() request: RequestWithContext) { return success(request, await this.admin.treasuryWallets()); }
@@ -289,7 +366,7 @@ export class AdminController {
       replacementHardware: body.replacement_hardware,
       reason: body.reason,
       actorId: request.platformAuth.staffId,
-    }), 'Credentials revoked; activate the verified handset and complete a fresh qualification run');
+    }), 'Credentials revoked; activate the phone with the new code, then switch it online');
   }
 
   @Post('fleet/devices/:deviceId/retire')

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { createPrivateKey, createPublicKey, generateKeyPairSync, sign } from 'node:crypto';
 import type { SignedPayloadEnvelope } from '@telebirr/contracts';
+import { stringifyJsonSafe } from '../common/json-serialization';
 
 @Injectable()
 export class DeviceSigningService {
@@ -28,7 +29,7 @@ export class DeviceSigningService {
   }
 
   signJson(payload: Record<string, unknown>): SignedPayloadEnvelope {
-    const exactPayload = Buffer.from(JSON.stringify(payload), 'utf8');
+    const exactPayload = Buffer.from(stringifyJsonSafe(payload), 'utf8');
     return {
       key_id: this.keyId,
       payload_base64: exactPayload.toString('base64'),

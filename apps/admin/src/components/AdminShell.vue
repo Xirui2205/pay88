@@ -3,7 +3,7 @@ import { computed, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Bell, ChatLineRound, Coin, Connection, DataAnalysis, Document, Fold, Grid, HelpFilled, Histogram,
-  Menu as MenuIcon, Operation, Setting, Shop, Tickets, UserFilled, Wallet,
+  Menu as MenuIcon, Operation, Setting, Shop, Tickets, UserFilled, Wallet, VideoPlay,
 } from '@element-plus/icons-vue'
 import { usePlatformStore } from '../stores/platform'
 
@@ -20,6 +20,7 @@ const nav = [
   { path: '/jobs', label: 'Device jobs', icon: Operation, badge: '2' },
   { path: '/deposits', label: 'Deposits', icon: Coin },
   { path: '/withdrawals', label: 'Withdrawals', icon: Wallet, badge: '1' },
+  { path: '/test-payments', label: 'Live payment test', icon: VideoPlay },
   { path: '/reconciliation', label: 'Reconciliation', icon: Tickets, badge: '3' },
   { path: '/support-cases', label: 'Support cases', icon: ChatLineRound },
   { path: '/merchants', label: 'Merchants', icon: Shop },

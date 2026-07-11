@@ -20,7 +20,7 @@ const maintenanceMode = ref<'recover'|'retire'|'delete'>('recover')
 const maintenanceReason = ref('')
 const replacementHardware = ref(false)
 const recoverySims = ref<Array<{slot:number;iccid:string;phone_number:string;account_name:string}>>([])
-const recoveryResult = ref<{activation_code:string;activation_expires_at:string;qualification_run_id:string}|null>(null)
+const recoveryResult = ref<{activation_code:string;activation_expires_at:string}|null>(null)
 
 const visible = computed(() => platform.devices.filter((device) =>
   (health.value === 'all' || device.health === health.value)
@@ -43,6 +43,17 @@ async function queryBalance(simId: string) {
     ElMessage.success('Balance query queued behind higher-priority financial work')
   } catch (error) {
     ElMessage.error(error instanceof Error ? error.message : 'Could not queue balance query')
+  } finally { acting.value = false }
+}
+
+async function setOnline(device: Device, value: boolean | string | number) {
+  acting.value = true
+  try {
+    await platform.setDeviceOnline(device.id, Boolean(value))
+    ElMessage.success(Boolean(value) ? `${device.name} is online` : `${device.name} is offline`)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'Could not change phone status')
+    await platform.refresh()
   } finally { acting.value = false }
 }
 
@@ -92,7 +103,7 @@ async function maintainDevice() {
   try {
     if (maintenanceMode.value === 'recover') {
       recoveryResult.value = await platform.recoverDevice(selectedDevice.value.id, { reason: maintenanceReason.value.trim(), replacement_hardware: replacementHardware.value, sims: recoverySims.value }, password.value)
-      ElMessage.success('Old credentials revoked; activation and fresh qualification are required')
+      ElMessage.success('Old credentials revoked; activate the phone with the new code')
     } else if (maintenanceMode.value === 'retire') {
       await platform.retireDevice(selectedDevice.value.id, maintenanceReason.value.trim(), password.value)
       maintenanceDialog.value = false
@@ -129,7 +140,7 @@ function exportCsv() {
     </div>
     <div class="summary-strip panel">
       <div><span>Total spendable</span><strong>ETB {{ balance.toLocaleString('en', { minimumFractionDigits: 2 }) }}</strong></div>
-      <div><span>Qualified phones</span><strong>{{ platform.qualifiedPhones }} / {{ platform.devices.length }}</strong></div>
+      <div><span>Online phones</span><strong>{{ platform.qualifiedPhones }} / {{ platform.devices.length }}</strong></div>
       <div><span>Available SIMs</span><strong>{{ availableSims }} / {{ totalSims }}</strong></div>
       <div><span>Daily headroom</span><strong>ETB {{ dailyHeadroom.toLocaleString('en', { maximumFractionDigits: 0 }) }}</strong></div>
     </div>
@@ -141,7 +152,7 @@ function exportCsv() {
           <template #title>
             <div class="device-head"><div class="device-icon"><span aria-hidden="true">📱</span><i :class="`status-${device.health}`" /></div><div class="device-name"><strong>{{ device.name }}</strong><span>{{ device.model }} · {{ device.group }}</span></div><div class="device-location desktop-only"><span>Location</span><strong>{{ device.location }}</strong></div><div class="device-seen desktop-only"><span>Last seen</span><strong>{{ device.lastSeen }}</strong></div><StatusPill :status="device.health" /></div>
           </template>
-          <div class="device-meta"><span>Battery <b>{{ device.battery }}%</b></span><span>Temperature <b>{{ device.temperature }}°C</b></span><span>Agent <b>v{{ device.appVersion }}</b></span><span>USSD profile <b>{{ device.profileVersion }}</b></span><el-button v-if="device.status==='pending'||device.status==='qualifying'" size="small" type="primary" plain @click.stop="$router.push({path:'/devices/new',query:{device:device.id}})">Resume enrollment</el-button><el-button v-if="device.status==='pending'||device.status==='qualifying'" size="small" type="danger" plain @click.stop="openMaintenance(device,'delete')">Delete failed enrollment</el-button><el-button v-if="device.status==='quarantined'||device.status==='retired'" size="small" type="warning" plain @click.stop="openMaintenance(device,'recover')">Recover / re-enroll</el-button><el-button v-if="device.status!=='retired'&&device.status!=='pending'" size="small" type="danger" plain @click.stop="openMaintenance(device,'retire')">Retire</el-button><el-button size="small" type="danger" plain :disabled="device.status==='quarantined'||device.status==='retired'" @click.stop="openQuarantine(device)">Quarantine</el-button></div>
+          <div class="device-meta"><el-switch :model-value="device.status==='online'" :loading="acting" active-text="Online" inactive-text="Offline" :disabled="device.status==='quarantined'||device.status==='retired'" @change="setOnline(device, $event)"/><span>Battery <b>{{ device.battery }}%</b></span><span>Temperature <b>{{ device.temperature }}°C</b></span><span>Agent <b>v{{ device.appVersion }}</b></span><span>USSD profile <b>{{ device.profileVersion }}</b></span><el-button v-if="device.status==='pending'" size="small" type="primary" plain @click.stop="$router.push({path:'/devices/new',query:{device:device.id}})">Open setup</el-button><el-button v-if="device.status==='pending'" size="small" type="danger" plain @click.stop="openMaintenance(device,'delete')">Delete phone</el-button><el-button v-if="device.status==='quarantined'||device.status==='retired'" size="small" type="warning" plain @click.stop="openMaintenance(device,'recover')">Recover / re-enroll</el-button><el-button v-if="device.status!=='retired'&&device.status!=='pending'" size="small" type="danger" plain @click.stop="openMaintenance(device,'retire')">Retire</el-button><el-button size="small" type="danger" plain :disabled="device.status==='quarantined'||device.status==='retired'" @click.stop="openQuarantine(device)">Quarantine</el-button></div>
           <div class="sim-grid">
             <article v-for="sim in device.sims" :key="sim.id" class="sim-card">
               <header><span class="slot">SIM {{ sim.slot }}</span><StatusPill :status="sim.health" /></header>
@@ -160,8 +171,8 @@ function exportCsv() {
       <template #footer><el-button @click="quarantineDialog=false">Cancel</el-button><el-button type="danger" :loading="acting" @click="quarantine">Quarantine device</el-button></template>
     </el-dialog>
     <el-dialog v-model="maintenanceDialog" :title="maintenanceMode==='recover'?'Recover or re-enroll device':maintenanceMode==='delete'?'Delete failed enrollment':'Retire device'" width="min(620px,94vw)" :close-on-click-modal="false">
-      <template v-if="recoveryResult"><el-alert title="Activation code is displayed once. Save it in the controlled installation record." type="warning" :closable="false" show-icon/><div class="recovery-code"><code>{{recoveryResult.activation_code}}</code><small>Expires {{new Date(recoveryResult.activation_expires_at).toLocaleString()}} · qualification {{recoveryResult.qualification_run_id}}</small></div><ol><li>Factory reset or re-enroll the verified phone if required.</li><li>Activate the signed agent with this code.</li><li>Verify both SIMs, run fresh balance queries and complete every qualification check.</li><li>Platform staff must approve the new run before assignments resume.</li></ol></template>
-      <template v-else><el-alert :title="maintenanceMode==='recover'?'This revokes the current device token/certificate and requires full qualification.':maintenanceMode==='delete'?'This permanently removes only an unqualified pilot record and releases its SIM ICCIDs and phone numbers for a fresh enrollment.':'Retirement is blocked while any deposit, payout or unknown outcome remains assigned.'" type="warning" :closable="false" show-icon/><el-form label-position="top" style="margin-top:16px"><template v-if="maintenanceMode==='recover'"><el-switch v-model="replacementHardware" active-text="Replacement handset / clear hardware identity"/><div v-for="sim in recoverySims" :key="sim.slot" class="recovery-sim"><strong>SIM {{sim.slot+1}} identity verification</strong><el-form-item label="Full ICCID"><el-input v-model="sim.iccid" inputmode="numeric" maxlength="24"/></el-form-item><el-form-item label="Telebirr number"><el-input v-model="sim.phone_number" placeholder="+2519…"/></el-form-item><el-form-item label="Registered Telebirr name"><el-input v-model="sim.account_name" maxlength="200"/></el-form-item></div></template><el-form-item label="Audited reason"><el-input v-model="maintenanceReason" type="textarea" :rows="3" maxlength="1000"/></el-form-item><el-form-item label="Your password"><el-input v-model="password" type="password" show-password autocomplete="current-password"/></el-form-item></el-form></template>
+      <template v-if="recoveryResult"><el-alert title="Enter this activation code on the phone." type="warning" :closable="false" show-icon/><div class="recovery-code"><code>{{recoveryResult.activation_code}}</code><small>Expires {{new Date(recoveryResult.activation_expires_at).toLocaleString()}}</small></div><ol><li>Open Telebirr Device Agent on the phone.</li><li>Enter this code.</li><li>Return to Fleet and switch the phone Online.</li></ol></template>
+      <template v-else><el-alert :title="maintenanceMode==='recover'?'This creates a new phone activation code.':maintenanceMode==='delete'?'This permanently removes the phone record and releases its SIM identities.':'Retirement is blocked while any deposit, payout or unknown outcome remains assigned.'" type="warning" :closable="false" show-icon/><el-form label-position="top" style="margin-top:16px"><template v-if="maintenanceMode==='recover'"><el-switch v-model="replacementHardware" active-text="Replacement handset / clear hardware identity"/><div v-for="sim in recoverySims" :key="sim.slot" class="recovery-sim"><strong>SIM {{sim.slot+1}}</strong><el-form-item label="Full ICCID"><el-input v-model="sim.iccid" inputmode="numeric" maxlength="24"/></el-form-item><el-form-item label="Telebirr number"><el-input v-model="sim.phone_number" placeholder="+2519…"/></el-form-item><el-form-item label="Registered Telebirr name"><el-input v-model="sim.account_name" maxlength="200"/></el-form-item></div></template><el-form-item label="Reason"><el-input v-model="maintenanceReason" type="textarea" :rows="3" maxlength="1000"/></el-form-item><el-form-item label="Your password"><el-input v-model="password" type="password" show-password autocomplete="current-password"/></el-form-item></el-form></template>
       <template #footer><el-button @click="maintenanceDialog=false">{{recoveryResult?'Close':'Cancel'}}</el-button><el-button v-if="!recoveryResult" :type="maintenanceMode==='recover'?'primary':'danger'" :loading="acting" @click="maintainDevice">{{maintenanceMode==='recover'?'Revoke and begin recovery':maintenanceMode==='delete'?'Delete and release SIMs':'Retire device'}}</el-button></template>
     </el-dialog>
   </div>

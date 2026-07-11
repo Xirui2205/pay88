@@ -55,10 +55,9 @@ export function jobExpiryDisposition(state: DeviceJob['state'], committedAt: Dat
   return committedAt !== null || state === 'leased' || state === 'device_started' || state === 'committed' || state === 'provider_pending' ? 'hold_unknown' : 'release_precommit';
 }
 
-export function qualificationControlledDeviceStatus(input: { quarantine: boolean; qualificationApproved: boolean; everySimApproved: boolean; permissionsOk: boolean; accessibilityOk: boolean }): 'quarantined' | 'qualifying' | 'online' | 'degraded' {
+export function operatorControlledDeviceStatus(input: { quarantine: boolean; operatorOnline: boolean }): 'quarantined' | 'online' | 'offline' {
   if (input.quarantine) return 'quarantined';
-  if (!input.qualificationApproved || !input.everySimApproved) return 'qualifying';
-  return input.permissionsOk && input.accessibilityOk ? 'online' : 'degraded';
+  return input.operatorOnline ? 'online' : 'offline';
 }
 
 export function simRetainsQualification(status: string): boolean {
@@ -168,7 +167,7 @@ export class DeviceJobsService {
           agentVersion: input.app_version,
           authTokenHash: tokenHash,
           ...(certificateFingerprint ? { certificateFingerprint } : {}),
-          status: 'qualifying',
+          status: 'offline',
         },
         include: { sims: { orderBy: { slot: 'asc' } } },
       });
@@ -194,6 +193,8 @@ export class DeviceJobsService {
   async heartbeat(deviceId: string, heartbeat: DeviceHeartbeat): Promise<void> {
     if (heartbeat.device_id !== deviceId) throw new ApiException('forbidden', 'Heartbeat device ID does not match credentials', HttpStatus.FORBIDDEN);
     await this.prisma.$transaction(async (transaction) => {
+      const currentDevice = await transaction.device.findUnique({ where: { id: deviceId }, select: { status: true } });
+      if (!currentDevice || currentDevice.status === 'retired') throw new ApiException('forbidden', 'Device is disabled', HttpStatus.FORBIDDEN);
       let quarantine = new Date(heartbeat.sent_at).valueOf() > Date.now() + 60_000;
       const enrolled = await transaction.simWallet.findMany({ where: { deviceId } });
       const reportedIccids = new Set(heartbeat.sims.map((sim) => sim.iccid));
@@ -233,8 +234,6 @@ export class DeviceJobsService {
           });
         }
       }
-      const approvedQualification = await transaction.deviceQualificationRun.findFirst({ where: { deviceId, status: 'approved' }, select: { id: true } });
-      const everySimApproved = enrolled.length > 0 && enrolled.every((sim) => simRetainsQualification(sim.status));
       await transaction.device.update({
         where: { id: deviceId },
         data: {
@@ -249,7 +248,7 @@ export class DeviceJobsService {
           charging: heartbeat.charging,
           temperatureCelsius: heartbeat.temperature_celsius,
           networkType: heartbeat.network_type,
-          status: qualificationControlledDeviceStatus({ quarantine, qualificationApproved: Boolean(approvedQualification), everySimApproved, permissionsOk: heartbeat.permissions_ok, accessibilityOk: heartbeat.accessibility_ok }),
+          status: operatorControlledDeviceStatus({ quarantine, operatorOnline: currentDevice.status === 'online' }),
         },
       });
     });

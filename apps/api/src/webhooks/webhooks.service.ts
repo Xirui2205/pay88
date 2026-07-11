@@ -4,6 +4,7 @@ import type { Prisma, RuntimeEnvironment } from '@prisma/client';
 import { randomBytes } from 'node:crypto';
 import { ApiException } from '../common/api-exception';
 import { hmacHex, sha256 } from '../common/crypto';
+import { stringifyJsonSafe } from '../common/json-serialization';
 import type { MerchantAuthContext } from '../auth/auth.types';
 import { MessageBusService } from '../infra/message-bus.service';
 import { PrismaService } from '../infra/prisma.service';
@@ -362,7 +363,7 @@ export class WebhooksService {
       return;
     }
     const payloadRecord = delivery.outboxEvent.payload as Record<string, unknown>;
-    const body = JSON.stringify({
+    const body = stringifyJsonSafe({
       event_id: delivery.outboxEvent.id,
       schema_version: '1.0',
       event_type: delivery.outboxEvent.eventType,

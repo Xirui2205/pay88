@@ -9,6 +9,7 @@ import AuditPage from './pages/AuditPage.vue'
 import AddPhonePage from './pages/AddPhonePage.vue'
 import ManualPage from './pages/ManualPage.vue'
 import SupportCasesPage from './pages/SupportCasesPage.vue'
+import TestPaymentsPage from './pages/TestPaymentsPage.vue'
 
 export default createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -22,6 +23,7 @@ export default createRouter({
     { path: '/jobs', name: 'jobs', component: OperationsPage, props: { kind: 'jobs' }, meta: { title: 'Device jobs' } },
     { path: '/deposits', name: 'deposits', component: OperationsPage, props: { kind: 'deposits' }, meta: { title: 'Deposits' } },
     { path: '/withdrawals', name: 'withdrawals', component: OperationsPage, props: { kind: 'withdrawals' }, meta: { title: 'Withdrawals' } },
+    { path: '/test-payments', name: 'test-payments', component: TestPaymentsPage, meta: { title: 'Live payment test' } },
     { path: '/reconciliation', name: 'reconciliation', component: ReconciliationPage, meta: { title: 'Reconciliation' } },
     { path: '/support-cases', name: 'support-cases', component: SupportCasesPage, meta: { title: 'Merchant support cases' } },
     { path: '/merchants', name: 'merchants', component: MerchantsPage, meta: { title: 'Merchants' } },

@@ -5,9 +5,11 @@ import { AppModule } from './app.module';
 import { ApiExceptionFilter } from './common/api-exception.filter';
 import { requestContextMiddleware } from './common/request-context';
 import { configureMaintainedOpenApi } from './openapi-contract';
+import { configureJsonSerialization } from './common/json-serialization';
 
 async function bootstrap(): Promise<void> {
   const app = await NestFactory.create(AppModule, { bufferLogs: true });
+  configureJsonSerialization(app);
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(requestContextMiddleware);
   const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? '')

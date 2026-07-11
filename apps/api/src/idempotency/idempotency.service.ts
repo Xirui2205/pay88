@@ -4,6 +4,7 @@ import { ApiException } from '../common/api-exception';
 import { sha256, stableJson } from '../common/crypto';
 import { PrismaService } from '../infra/prisma.service';
 import type { MerchantAuthContext } from '../auth/auth.types';
+import { toJsonCompatible } from '../common/json-serialization';
 
 interface IdempotencyOptions<T> {
   auth: MerchantAuthContext;
@@ -79,7 +80,9 @@ export class IdempotencyService {
         }
 
         const result = await options.execute(transaction);
-        const responseBody = options.storeResult ? options.storeResult(result) : result as Prisma.InputJsonValue;
+        const responseBody = options.storeResult
+          ? options.storeResult(result)
+          : toJsonCompatible(result) as Prisma.InputJsonValue;
         await transaction.idempotencyRecord.createMany({
           data: recordIdentities.map((identity) => ({
             merchantId: options.auth.merchantId,

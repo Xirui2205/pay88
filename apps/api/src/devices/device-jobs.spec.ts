@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boundedJobObservedAt, classifyPrecommitNameDisposition, financiallySafeReportState, jobExpiryDisposition, jobStatusInboxDisposition, qualificationControlledDeviceStatus, shouldReleaseDeviceLockAfterReport, simRetainsQualification } from './device-jobs.service';
+import { boundedJobObservedAt, classifyPrecommitNameDisposition, financiallySafeReportState, jobExpiryDisposition, jobStatusInboxDisposition, operatorControlledDeviceStatus, shouldReleaseDeviceLockAfterReport, simRetainsQualification } from './device-jobs.service';
 
 describe('device job commit boundary', () => {
   it('turns a generic post-PIN failure into unknown for manual reconciliation', () => {
@@ -99,11 +99,11 @@ describe('expired job financial disposition', () => {
   });
 });
 
-describe('device qualification boundary', () => {
-  it('never promotes a device from heartbeat while qualification or a SIM is pending', () => {
-    expect(qualificationControlledDeviceStatus({ quarantine: false, qualificationApproved: false, everySimApproved: false, permissionsOk: true, accessibilityOk: true })).toBe('qualifying');
-    expect(qualificationControlledDeviceStatus({ quarantine: false, qualificationApproved: true, everySimApproved: false, permissionsOk: true, accessibilityOk: true })).toBe('qualifying');
-    expect(qualificationControlledDeviceStatus({ quarantine: false, qualificationApproved: true, everySimApproved: true, permissionsOk: true, accessibilityOk: true })).toBe('online');
+describe('operator-controlled device status', () => {
+  it('preserves the admin online/offline switch while quarantine always wins', () => {
+    expect(operatorControlledDeviceStatus({ quarantine: false, operatorOnline: false })).toBe('offline');
+    expect(operatorControlledDeviceStatus({ quarantine: false, operatorOnline: true })).toBe('online');
+    expect(operatorControlledDeviceStatus({ quarantine: true, operatorOnline: true })).toBe('quarantined');
   });
 
   it('keeps a stale but previously approved SIM qualified for its recovery balance query', () => {

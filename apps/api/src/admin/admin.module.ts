@@ -10,9 +10,10 @@ import { PlatformWriteGuard } from './platform-write.guard';
 import { WithdrawalsModule } from '../withdrawals/withdrawals.module';
 import { ConfigurationModule } from '../configuration/configuration.module';
 import { SupportCasesModule } from '../support/support-cases.module';
+import { DepositsModule } from '../deposits/deposits.module';
 
 @Module({
-  imports: [LedgerModule, WithdrawalsModule, ConfigurationModule, SupportCasesModule],
+  imports: [LedgerModule, DepositsModule, WithdrawalsModule, ConfigurationModule, SupportCasesModule],
   controllers: [AdminController, PlatformAuthController],
   providers: [AdminGuard, AdminService, PasswordReauthGuard, PlatformAuthService, PlatformWriteGuard],
   exports: [AdminGuard, PasswordReauthGuard, PlatformWriteGuard],

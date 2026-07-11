@@ -7,10 +7,11 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { z } from 'zod';
 import { jobStatusEventSchema } from '@telebirr/contracts';
 import { constantTimeEqual, sha256 } from '../common/crypto';
+import { stringifyJsonSafe } from '../common/json-serialization';
 import { PrismaService } from '../infra/prisma.service';
 import { comparePersonNames } from '../parsers/name-normalizer';
 import { SmsIngestionService } from '../sms/sms-ingestion.service';
-import { DeviceJobsService, qualificationControlledDeviceStatus, simRetainsQualification } from './device-jobs.service';
+import { DeviceJobsService, operatorControlledDeviceStatus } from './device-jobs.service';
 import { DeviceProfilesService } from './device-profiles.service';
 import { EvidenceStoreService } from '../sms/evidence-store.service';
 import { encryptEvidence, sanitizeUssdEvidence, ussdDiagnosticLabel } from '../common/evidence-crypto';
@@ -410,21 +411,10 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
         });
       }
       const permissionsOk = heartbeat.permissions_ok && Object.values(heartbeat.permissions).every(Boolean);
-      const approvedQualification = await transaction.deviceQualificationRun.findFirst({
-        where: { deviceId, status: 'approved' },
-        select: { id: true },
-      });
-      const everySimApproved = enrolled.length > 0 && enrolled.every((sim) => simRetainsQualification(sim.status));
       await transaction.device.update({
         where: { id: deviceId },
         data: {
-          status: qualificationControlledDeviceStatus({
-            quarantine,
-            qualificationApproved: Boolean(approvedQualification),
-            everySimApproved,
-            permissionsOk,
-            accessibilityOk: heartbeat.accessibility_ok,
-          }),
+          status: operatorControlledDeviceStatus({ quarantine, operatorOnline: currentDevice.status === 'online' }),
           lastHeartbeatAt: new Date(),
           lastPermissionsOk: permissionsOk,
           lastAccessibilityOk: heartbeat.accessibility_ok,
@@ -442,6 +432,6 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
   }
 
   private send(socket: WebSocket, value: unknown): void {
-    if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(value));
+    if (socket.readyState === WebSocket.OPEN) socket.send(stringifyJsonSafe(value));
   }
 }

@@ -310,21 +310,51 @@ export class AdminService {
         include: { sims: true },
       });
       await transaction.deviceActivationCode.create({ data: { deviceId: created.id, codeHash: sha256(activationCode), expiresAt } });
-      const run = await transaction.deviceQualificationRun.create({
-        data: {
-          deviceId: created.id,
-          checks: {
-            create: [
-              ...deviceQualificationKeys.map((key) => ({ key })),
-              ...created.sims.flatMap((sim) => simQualificationKeys.map((key) => ({ key, simWalletId: sim.id }))),
-            ],
-          },
-        },
-      });
-      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId: input.actorId, action: 'device.created', targetType: 'device', targetId: created.id, metadata: { qualification_run_id: run.id, sim_count: created.sims.length } } });
-      return { ...created, qualificationRunId: run.id };
+      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId: input.actorId, action: 'device.created', targetType: 'device', targetId: created.id, metadata: { sim_count: created.sims.length } } });
+      return created;
     });
-    return { id: device.id, name: device.name, model: device.model, status: device.status, sims: device.sims.map((sim) => ({ id: sim.id, slot: sim.slot, phone_number: sim.phoneNumber, account_name: sim.telebirrAccountName, status: sim.status })), activation_code: activationCode, activation_expires_at: expiresAt.toISOString(), qualification_run_id: device.qualificationRunId };
+    return { id: device.id, name: device.name, model: device.model, status: device.status, sims: device.sims.map((sim) => ({ id: sim.id, slot: sim.slot, phone_number: sim.phoneNumber, account_name: sim.telebirrAccountName, status: sim.status })), activation_code: activationCode, activation_expires_at: expiresAt.toISOString() };
+  }
+
+  async device(deviceId: string) {
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceId },
+      include: { sims: { orderBy: { slot: 'asc' } } },
+    });
+    if (!device) throw new ApiException('not_found', 'Device was not found', HttpStatus.NOT_FOUND);
+    return {
+      id: device.id,
+      name: device.name,
+      model: device.model,
+      status: device.status,
+      activation_consumed: Boolean(device.authTokenHash),
+      last_heartbeat_at: device.lastHeartbeatAt?.toISOString() ?? null,
+      sims: device.sims.map((sim) => ({
+        id: sim.id,
+        slot: sim.slot,
+        phone_number: sim.phoneNumber,
+        account_name: sim.telebirrAccountName,
+        status: sim.status,
+      })),
+    };
+  }
+
+  async setDeviceOnline(deviceId: string, online: boolean, actorId: string) {
+    await this.prisma.$transaction(async (transaction) => {
+      const device = await transaction.device.findUnique({ where: { id: deviceId } });
+      if (!device) throw new ApiException('not_found', 'Device was not found', HttpStatus.NOT_FOUND);
+      if (['quarantined', 'retired'].includes(device.status)) {
+        throw new ApiException('invalid_state', 'Recover this device before changing its online status', HttpStatus.CONFLICT);
+      }
+      await transaction.device.update({ where: { id: deviceId }, data: { status: online ? 'online' : 'offline' } });
+      if (online) {
+        await transaction.simWallet.updateMany({ where: { deviceId, status: { notIn: ['quarantined', 'disabled'] } }, data: { status: 'active' } });
+      } else {
+        await transaction.simWallet.updateMany({ where: { deviceId, status: { in: ['active', 'payout_stale'] } }, data: { status: 'pending' } });
+      }
+      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId, action: 'device.online_toggled', targetType: 'device', targetId: deviceId, metadata: { online } } });
+    });
+    return this.device(deviceId);
   }
 
   async regenerateActivationCode(deviceId: string, actorId: string) {
@@ -708,17 +738,10 @@ export class AdminService {
         where: { simWalletId: { in: simIds }, type: { in: ['balance_query', 'unknown_reconciliation'] }, state: { in: ['queued', 'leased', 'device_started', 'committed', 'provider_pending'] } },
         data: { state: 'cancelled', completedAt: new Date(), errorCode: 'DEVICE_CREDENTIAL_RECOVERY' },
       });
-      const run = await transaction.deviceQualificationRun.create({
-        data: {
-          deviceId: device.id,
-          status: 'pending',
-          checks: { create: [...deviceQualificationKeys.map((key) => ({ key })), ...device.sims.flatMap((sim) => simQualificationKeys.map((key) => ({ key, simWalletId: sim.id })))] },
-        },
-      });
       await transaction.device.update({
         where: { id: device.id },
         data: {
-          status: 'qualifying',
+          status: 'pending',
           authTokenHash: null,
           certificateFingerprint: null,
           activeUssdJobId: null,
@@ -742,15 +765,14 @@ export class AdminService {
           targetType: 'device',
           targetId: device.id,
           reason: input.reason,
-          metadata: { replacement_hardware: input.replacementHardware, qualification_run_id: run.id, sim_count: device.sims.length },
+          metadata: { replacement_hardware: input.replacementHardware, sim_count: device.sims.length },
         },
       });
       return {
         device_id: device.id,
         activation_code: activationCode,
         activation_expires_at: expiresAt.toISOString(),
-        qualification_run_id: run.id,
-        required_next_steps: ['activate_device', 'verify_both_sim_identities', 'complete_qualification_checks', 'query_fresh_balances', 'platform_approve'],
+        required_next_steps: ['activate_device', 'switch_device_online'],
       };
     }, { isolationLevel: 'Serializable', timeout: 20_000 });
   }

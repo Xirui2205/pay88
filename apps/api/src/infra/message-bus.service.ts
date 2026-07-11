@@ -3,6 +3,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/commo
 import amqp, { ChannelModel, ConfirmChannel, ConsumeMessage } from 'amqplib';
 import { PrismaService } from './prisma.service';
 import { sha256 } from '../common/crypto';
+import { stringifyJsonSafe } from '../common/json-serialization';
 
 @Injectable()
 export class MessageBusService implements OnModuleInit, OnModuleDestroy {
@@ -37,7 +38,8 @@ export class MessageBusService implements OnModuleInit, OnModuleDestroy {
   }
 
   async publish(topic: string, payload: unknown): Promise<void> {
-    const serialized = Buffer.from(JSON.stringify(payload));
+    const serializedText = stringifyJsonSafe(payload);
+    const serialized = Buffer.from(serializedText);
     if (this.channel) {
       this.channel.publish('telebirr.events', topic, serialized, {
         persistent: true,
@@ -47,7 +49,10 @@ export class MessageBusService implements OnModuleInit, OnModuleDestroy {
       await this.channel.waitForConfirms();
       return;
     }
-    queueMicrotask(() => this.local.emit(topic, payload));
+    // Match the RabbitMQ JSON round-trip in local fallback mode so tests and
+    // development never observe native BigInts that production cannot carry.
+    const normalizedPayload = JSON.parse(serializedText) as unknown;
+    queueMicrotask(() => this.local.emit(topic, normalizedPayload));
   }
 
   subscribeLocal(topic: string, handler: (payload: unknown) => void): () => void {
