@@ -119,6 +119,11 @@ export class AdminController {
     return success(request, await this.admin.operations(z.enum(['jobs', 'deposits', 'withdrawals']).parse(kind)));
   }
 
+  @Get('fleet/devices/:deviceId/diagnostics')
+  async deviceDiagnostics(@Req() request: RequestWithContext, @Param('deviceId') deviceId: string) {
+    return success(request, await this.admin.deviceDiagnostics(z.string().uuid().parse(deviceId)));
+  }
+
   @Post('device-jobs/:jobId/execute-now')
   @HttpCode(200)
   async executeDeviceJobNow(@Req() request: PlatformRequest, @Param('jobId') jobId: string) {

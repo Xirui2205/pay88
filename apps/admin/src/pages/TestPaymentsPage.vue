@@ -3,6 +3,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Money, Promotion, RefreshRight } from '@element-plus/icons-vue'
 import { usePlatformStore } from '../stores/platform'
+import { ApiError } from '../api/client'
 
 const platform = usePlatformStore()
 const depositLoading = ref(false)
@@ -26,7 +27,7 @@ async function runDeposit() {
   try {
     depositResult.value = await platform.createTestDeposit(deposit.value)
     ElMessage.success('Live deposit instruction created')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : 'Could not create deposit') }
+  } catch (error) { depositResult.value = { api_error: error instanceof ApiError ? error.body : { message: error instanceof Error ? error.message : 'Unknown error' } }; ElMessage.error(error instanceof Error ? error.message : 'Could not create deposit') }
   finally { depositLoading.value = false }
 }
 
@@ -43,7 +44,7 @@ async function runWithdrawal() {
   try {
     withdrawalResult.value = await platform.createTestWithdrawal(withdrawal.value)
     ElMessage.success('Live withdrawal queued')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : 'Could not create withdrawal') }
+  } catch (error) { withdrawalResult.value = { api_error: error instanceof ApiError ? error.body : { message: error instanceof Error ? error.message : 'Unknown error' } }; ElMessage.error(error instanceof Error ? error.message : 'Could not create withdrawal') }
   finally { withdrawalLoading.value = false }
 }
 
@@ -64,7 +65,7 @@ function open(url:string) { window.open(url, '_blank', 'noopener,noreferrer') }
           <el-form-item label="Sender phone number"><el-input v-model="deposit.phone_number" placeholder="09… or +2519…"/></el-form-item>
           <el-button type="primary" :icon="Promotion" :loading="depositLoading" :disabled="!deposit.merchant_id" @click="runDeposit">Create live deposit</el-button>
         </el-form>
-        <div v-if="depositResult" class="result"><span>Reference</span><strong>{{depositResult.tx_ref}}</strong><span>Status</span><strong>{{depositResult.p2p_status}}</strong><span>Amount</span><strong>ETB {{depositResult.amount}}</strong><el-button type="primary" @click="open(depositResult.checkout_url)">Open payment instructions</el-button></div>
+        <div v-if="depositResult" class="result"><template v-if="depositResult.tx_ref"><span>Reference</span><strong>{{depositResult.tx_ref}}</strong><span>Status</span><strong>{{depositResult.p2p_status}}</strong><span>Amount</span><strong>ETB {{depositResult.amount}}</strong><el-button type="primary" @click="open(depositResult.checkout_url)">Open payment instructions</el-button></template><details open><summary>Full API response</summary><pre>{{JSON.stringify(depositResult.api_response??depositResult.api_error??depositResult,null,2)}}</pre></details></div>
       </section>
 
       <section class="panel test-card">
@@ -76,12 +77,12 @@ function open(url:string) { window.open(url, '_blank', 'noopener,noreferrer') }
           <el-form-item label="Receiver name"><el-input v-model="withdrawal.expected_name"/></el-form-item>
           <el-button type="danger" :icon="Promotion" :loading="withdrawalLoading" :disabled="!withdrawal.merchant_id" @click="runWithdrawal">Send live withdrawal</el-button>
         </el-form>
-        <div v-if="withdrawalResult" class="result"><span>Reference</span><strong>{{withdrawalResult.reference}}</strong><span>Status</span><strong>{{withdrawalResult.p2p_status}}</strong><span>Amount</span><strong>ETB {{withdrawalResult.amount}}</strong><el-button @click="open(withdrawalResult.status_url)">Open withdrawal status</el-button></div>
+        <div v-if="withdrawalResult" class="result"><template v-if="withdrawalResult.reference"><span>Reference</span><strong>{{withdrawalResult.reference}}</strong><span>Status</span><strong>{{withdrawalResult.p2p_status}}</strong><span>Amount</span><strong>ETB {{withdrawalResult.amount}}</strong><el-button @click="open(withdrawalResult.status_url)">Open withdrawal status</el-button></template><details open><summary>Full API response</summary><pre>{{JSON.stringify(withdrawalResult.api_response??withdrawalResult.api_error??withdrawalResult,null,2)}}</pre></details></div>
       </section>
     </div>
   </div>
 </template>
 
 <style scoped>
-.test-page{max-width:1100px}.warning{margin-bottom:18px}.test-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.test-card{overflow:hidden}.panel-head h2{display:flex;align-items:center;gap:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.result{display:grid;grid-template-columns:100px 1fr;gap:9px 12px;margin:0 20px 20px;padding:17px;border-radius:11px;background:#f5f7fa}.result span{font-size:10px;color:var(--muted);text-transform:uppercase}.result strong{font-size:12px;word-break:break-all}.result .el-button{grid-column:1/-1;margin-top:8px}@media(max-width:850px){.test-grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
+.test-page{max-width:1100px}.warning{margin-bottom:18px}.test-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px}.test-card{overflow:hidden}.panel-head h2{display:flex;align-items:center;gap:8px}.two{display:grid;grid-template-columns:1fr 1fr;gap:12px}.result{display:grid;grid-template-columns:100px 1fr;gap:9px 12px;margin:0 20px 20px;padding:17px;border-radius:11px;background:#f5f7fa}.result span{font-size:10px;color:var(--muted);text-transform:uppercase}.result strong{font-size:12px;word-break:break-all}.result .el-button,.result details{grid-column:1/-1;margin-top:8px}.result summary{cursor:pointer;font-weight:700}.result pre{max-height:360px;overflow:auto;background:#111827;color:#d1fae5;padding:12px;border-radius:8px;font:10px/1.55 Consolas,monospace;white-space:pre-wrap;word-break:break-word}@media(max-width:850px){.test-grid{grid-template-columns:1fr}.two{grid-template-columns:1fr}}
 </style>

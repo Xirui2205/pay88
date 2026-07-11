@@ -26,7 +26,29 @@ export interface Device {
   temperature: number
   appVersion: string
   profileVersion: string
+  permissionsOk: boolean
+  accessibilityOk: boolean
+  readiness: DeviceReadiness
+  lastProfileInstallResult: unknown
   sims: SimWallet[]
+}
+
+export interface DeviceBlocker {
+  code: string
+  message: string
+  detail?: unknown
+}
+
+export interface DeviceReadiness {
+  ready: boolean
+  heartbeat_age_seconds: number | null
+  permissions_ok: boolean
+  accessibility_ok: boolean
+  installed_profiles: string[]
+  required_profiles: string[]
+  missing_profiles: string[]
+  active_ussd_job_id: string | null
+  blockers: DeviceBlocker[]
 }
 
 export interface OperationRecord {
@@ -42,4 +64,5 @@ export interface OperationRecord {
   log?: Array<{ at: string; event: string; detail: string }>
   canExecuteNow?: boolean
   canRetry?: boolean
+  readiness?: DeviceReadiness
 }

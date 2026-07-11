@@ -514,7 +514,9 @@ model Device {
   model                  String?                  @db.VarChar(100)
   buildFingerprint       String?                  @db.VarChar(255)
   agentVersion           String?                  @db.VarChar(32)
-  ussdProfileVersion     String?                  @db.VarChar(32)
+  ussdProfileVersion     String?                  @db.VarChar(500)
+  lastHeartbeatPayload   Json?
+  lastProfileInstallResult Json?
   status                 DeviceStatus             @default(pending)
   authTokenHash          String?                  @db.VarChar(255)
   certificateFingerprint String?                  @unique @db.VarChar(128)

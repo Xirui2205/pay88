@@ -3,18 +3,31 @@ export const adminDemoMode = import.meta.env.VITE_DEMO_MODE === 'true'
 export const adminSession = { get: () => sessionStorage.getItem('telebirr_admin_session'), set: (token: string) => sessionStorage.setItem('telebirr_admin_session', token), clear: () => sessionStorage.removeItem('telebirr_admin_session') }
 
 export class ApiError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(public status: number, message: string, public body: unknown = null) {
     super(message)
   }
 }
 
-export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+export interface ApiEnvelope<T> {
+  status: string
+  message: string
+  code: string
+  data: T
+  request_id: string
+}
+
+export async function apiEnvelope<T>(path: string, init?: RequestInit): Promise<ApiEnvelope<T>> {
   const response = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { 'content-type': 'application/json', ...(adminSession.get() ? { authorization: `Bearer ${adminSession.get()}` } : {}), ...init?.headers },
   })
   const body = await response.json().catch(() => ({ message: `Platform API request failed (${response.status})` }))
-  if (!response.ok) throw new ApiError(response.status, String(body.message ?? `Platform API request failed (${response.status})`))
+  if (!response.ok) throw new ApiError(response.status, String(body.message ?? `Platform API request failed (${response.status})`), body)
+  return body as ApiEnvelope<T>
+}
+
+export async function api<T>(path: string, init?: RequestInit): Promise<T> {
+  const body = await apiEnvelope<T>(path, init)
   return (body.data ?? body) as T
 }
 

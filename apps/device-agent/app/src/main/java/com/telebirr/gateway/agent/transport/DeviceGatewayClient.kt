@@ -15,6 +15,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.jsonArray
@@ -128,10 +130,7 @@ class DeviceGatewayClient(
         val message = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return
         when (message["type"]?.jsonPrimitive?.content) {
             "profile_install" -> {
-                val envelope = runCatching {
-                    json.decodeFromJsonElement<SignedFlowProfileEnvelope>(requireNotNull(message["envelope"]))
-                }.getOrNull() ?: return
-                runCatching { container.runtimeOrNull()?.profileStore?.install(envelope) }
+                handleProfileInstall(message["envelope"])
             }
             "job" -> {
                 val envelope = runCatching {
@@ -175,6 +174,104 @@ class DeviceGatewayClient(
             }
         }
     }
+
+    private suspend fun handleProfileInstall(envelopeElement: JsonElement?) {
+        val observedAt = System.currentTimeMillis()
+        val envelope = runCatching {
+            json.decodeFromJsonElement<SignedFlowProfileEnvelope>(requireNotNull(envelopeElement))
+        }.getOrElse { error ->
+            enqueueProfileInstallResult(
+                envelopeElement = envelopeElement,
+                keyId = null,
+                profileId = null,
+                profileVersion = null,
+                result = "rejected",
+                code = "envelope_decode_failed",
+                message = diagnosticMessage(error),
+                observedAt = observedAt,
+            )
+            return
+        }
+        try {
+            val runtime = container.runtimeOrNull() ?: error("Agent runtime is unavailable")
+            val profile = runtime.profileStore.install(envelope)
+            enqueueProfileInstallResult(
+                envelopeElement = envelopeElement,
+                keyId = envelope.keyId,
+                profileId = profile.profileId,
+                profileVersion = profile.version,
+                result = "installed",
+                code = "ok",
+                message = "Signed USSD profile installed and verified",
+                observedAt = observedAt,
+            )
+        } catch (error: Throwable) {
+            enqueueProfileInstallResult(
+                envelopeElement = envelopeElement,
+                keyId = envelope.keyId,
+                profileId = profileIdentity(envelope.payloadBase64).first,
+                profileVersion = profileIdentity(envelope.payloadBase64).second,
+                result = "rejected",
+                code = profileInstallErrorCode(error),
+                message = diagnosticMessage(error),
+                observedAt = observedAt,
+            )
+        }
+    }
+
+    private suspend fun enqueueProfileInstallResult(
+        envelopeElement: JsonElement?,
+        keyId: String?,
+        profileId: String?,
+        profileVersion: Int?,
+        result: String,
+        code: String,
+        message: String,
+        observedAt: Long,
+    ) {
+        val installed = container.runtimeOrNull()?.profileStore?.installedMetadata().orEmpty()
+        container.spool.enqueue(
+            "PROFILE_INSTALL_RESULT",
+            buildJsonObject {
+                put("profile_id", profileId)
+                put("profile_version", profileVersion)
+                put("key_id", keyId)
+                put("result", result)
+                put("code", code)
+                put("message", message)
+                put("observed_at_ms", observedAt)
+                put("installed_profiles", buildJsonArray {
+                    installed.forEach { (id, version) ->
+                        add(buildJsonObject { put("id", id); put("version", version) })
+                    }
+                })
+                envelopeElement?.let { put("server_envelope", it) }
+            }.toString().toByteArray(),
+        )
+    }
+
+    private fun profileIdentity(payloadBase64: String): Pair<String?, Int?> = runCatching {
+        val payload = com.telebirr.gateway.agent.crypto.CryptoEncoding.base64Decode(payloadBase64).decodeToString()
+        val objectValue = json.parseToJsonElement(payload).jsonObject
+        objectValue["profile_id"]?.jsonPrimitive?.content to
+            objectValue["version"]?.jsonPrimitive?.content?.toIntOrNull()
+    }.getOrDefault(null to null)
+
+    private fun profileInstallErrorCode(error: Throwable): String {
+        val message = error.message.orEmpty().lowercase()
+        return when {
+            "runtime is unavailable" in message -> "runtime_unavailable"
+            "unexpected profile signing key" in message -> "signing_key_mismatch"
+            "invalid profile signature" in message -> "signature_invalid"
+            "rollback" in message -> "profile_rollback_rejected"
+            "different signed content" in message -> "profile_version_conflict"
+            "atomically install" in message -> "profile_storage_failed"
+            else -> "profile_validation_failed"
+        }
+    }
+
+    private fun diagnosticMessage(error: Throwable): String =
+        (error.message ?: error::class.java.simpleName).take(500)
 
     private fun send(message: JsonObject): Boolean = socket?.send(message.toString()) == true
 

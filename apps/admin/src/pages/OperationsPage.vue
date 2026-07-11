@@ -4,7 +4,7 @@ import { Download, Refresh, Search } from '@element-plus/icons-vue'
 import StatusPill from '../components/StatusPill.vue'
 import { deposits, jobs, withdrawals } from '../data/mock'
 import { usePlatformStore } from '../stores/platform'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 
 const props = defineProps<{ kind: 'jobs' | 'deposits' | 'withdrawals' }>()
 const platform = usePlatformStore()
@@ -18,7 +18,8 @@ const actionJobId = ref('')
 const labels = computed(() => ({ jobs: ['Device jobs', 'Prioritized, leased work across the phone fleet.'], deposits: ['Deposits', 'Assigned intents and incoming Telebirr receipts.'], withdrawals: ['Withdrawals', 'Single-SIM payouts and provider confirmations.'] }[props.kind]))
 onMounted(()=>platform.loadOperations(props.kind));watch(()=>props.kind,kind=>platform.loadOperations(kind))
 function exportCsv(){const q=(value:unknown)=>`"${String(value??'').replace(/"/g,'""')}"`;const keys=['id','merchant','reference','customer','amount','status','p2pStatus','device','age'] as const;const csv=[keys.map(q).join(','),...filtered.value.map(row=>keys.map(key=>q(row[key])).join(','))].join('\r\n');const url=URL.createObjectURL(new Blob([`\uFEFF${csv}`],{type:'text/csv;charset=utf-8'}));const anchor=document.createElement('a');anchor.href=url;anchor.download=`platform-${props.kind}-${new Date().toISOString().slice(0,10)}.csv`;anchor.click();URL.revokeObjectURL(url);ElMessage.success(`Exported ${filtered.value.length} records`)}
-async function executeNow(id:string){actionJobId.value=id;try{await platform.executeDeviceJobNow(id);ElMessage.success('Job moved to the front of the queue')}catch(error){ElMessage.error(error instanceof Error?error.message:'Could not execute job')}finally{actionJobId.value=''}}
+async function executeNow(id:string){actionJobId.value=id;try{const response=await platform.executeDeviceJobNow(id);if(response.execution_requested){ElMessage.success('Job is eligible and moved to the front of the queue')}else{ElMessage.warning('Job is blocked. The backend returned exact diagnostics.');await ElMessageBox.alert(`<pre style="white-space:pre-wrap;word-break:break-word;max-height:55vh;overflow:auto">${escapeHtml(JSON.stringify(response,null,2))}</pre>`,'Execution blocked',{dangerouslyUseHTMLString:true,confirmButtonText:'Close'})}}catch(error){ElMessage.error(error instanceof Error?error.message:'Could not execute job')}finally{actionJobId.value=''}}
+function escapeHtml(value:string){return value.replace(/[&<>"']/g,character=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[character]??character))}
 async function retryJob(id:string){actionJobId.value=id;try{await platform.retryDeviceJob(id);ElMessage.success('Failed job queued for retry')}catch(error){ElMessage.error(error instanceof Error?error.message:'Could not retry job')}finally{actionJobId.value=''}}
 </script>
 <template>
@@ -37,6 +38,8 @@ async function retryJob(id:string){actionJobId.value=id;try{await platform.retry
           <template #default="s">
             <div class="job-log">
               <strong>Job response log</strong>
+              <el-alert v-if="s.row.readiness&&!s.row.readiness.ready" type="error" :closable="false" show-icon title="The phone cannot execute this job with its current state."/>
+              <pre v-if="s.row.readiness" class="raw-response">{{JSON.stringify(s.row.readiness,null,2)}}</pre>
               <el-timeline v-if="s.row.log?.length">
                 <el-timeline-item v-for="(entry,index) in s.row.log" :key="`${entry.at}-${index}`" :timestamp="new Date(entry.at).toLocaleString()" placement="top">
                   <b>{{ entry.event }}</b><div class="log-detail">{{ entry.detail }}</div>
@@ -60,6 +63,6 @@ async function retryJob(id:string){actionJobId.value=id;try{await platform.retry
   </div>
 </template>
 <style scoped>
-.job-log{padding:12px 28px 4px}.job-log>strong{display:block;margin-bottom:18px}.log-detail{white-space:pre-wrap;word-break:break-word;margin-top:4px}
+.job-log{padding:12px 28px 4px}.job-log>strong{display:block;margin-bottom:18px}.log-detail{white-space:pre-wrap;word-break:break-word;margin-top:4px}.raw-response{max-height:320px;overflow:auto;background:#111827;color:#d1fae5;padding:12px;border-radius:8px;font:10px/1.55 Consolas,monospace;white-space:pre-wrap;word-break:break-word}
 .quick-stats{margin-bottom:18px}.quick-stats>div{padding:18px 20px}.quick-stats span,.quick-stats small,.quick-stats strong{display:block}.quick-stats span{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:700}.quick-stats strong{font:800 23px 'Manrope';margin:7px 0 3px}.quick-stats small{font-size:10px;color:var(--muted)}.quick-stats .warning strong{color:var(--danger)}.search{max-width:360px}.pagination{display:flex;justify-content:space-between;align-items:center;padding:16px 20px}
 </style>

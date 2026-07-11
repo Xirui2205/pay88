@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { jobStatusEventSchema } from '@telebirr/contracts';
 import { constantTimeEqual, sha256 } from '../common/crypto';
 import { stringifyJsonSafe } from '../common/json-serialization';
+import { toJsonCompatible } from '../common/json-serialization';
+import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../infra/prisma.service';
 import { comparePersonNames } from '../parsers/name-normalizer';
 import { SmsIngestionService } from '../sms/sms-ingestion.service';
@@ -88,6 +90,24 @@ const smsEvidenceSchema = z.object({
   subscription_id: z.number().int(),
   sim_iccid_hash: z.string().regex(/^[a-f0-9]{64}$/),
   raw_message: z.string().min(1).max(8000),
+});
+export const profileInstallResultSchema = z.object({
+  profile_id: z.string().min(3).max(64).nullable(),
+  profile_version: z.number().int().positive().nullable(),
+  key_id: z.string().min(1).max(64).nullable(),
+  result: z.enum(['installed', 'rejected']),
+  code: z.string().min(1).max(80),
+  message: z.string().min(1).max(500),
+  observed_at_ms: z.number().int().positive(),
+  installed_profiles: z.array(z.object({ id: z.string().min(3).max(64), version: z.number().int().positive() })).max(20),
+  server_envelope: z.unknown().optional(),
+});
+
+const jobAcceptanceSchema = z.object({
+  job_id: z.string().uuid().optional(),
+  result: z.enum(['accepted', 'duplicate', 'rejected']),
+  state: z.string().max(40).optional(),
+  code: z.string().max(80).optional(),
 });
 export const leaseRenewalRequestSchema = z.object({
   type: z.literal('lease_renewal_request'),
@@ -272,10 +292,73 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
     event: z.infer<typeof deviceSpoolBatchSchema>['events'][number],
   ): Promise<void> {
     if (event.kind === 'JOB_STATUS') {
-      await this.jobs.reportFromSpool(deviceId, jobStatusEventSchema.parse(event.payload), event.id);
+      const payload = jobStatusEventSchema.parse(event.payload);
+      await this.jobs.reportFromSpool(deviceId, payload, event.id);
+      await this.prisma.$transaction(async (transaction) => {
+        const inbox = await transaction.inboxEvent.createMany({
+          data: [{ source: 'device_response_audit', externalId: event.id, payloadHash: sha256(stringifyJsonSafe(payload)) }],
+          skipDuplicates: true,
+        });
+        if (inbox.count === 0) return;
+        await transaction.auditLog.create({
+          data: {
+            actorType: 'device_agent', actorId: deviceId, action: 'device.job_status_response',
+            targetType: 'device_job', targetId: payload.job_id,
+            metadata: { event_id: event.id, api_response: toJsonCompatible(payload) as Prisma.InputJsonValue },
+          },
+        });
+      });
       return;
     }
-    if (event.kind === 'JOB_ACCEPTANCE') return;
+    if (event.kind === 'JOB_ACCEPTANCE') {
+      const payload = jobAcceptanceSchema.parse(event.payload);
+      await this.prisma.$transaction(async (transaction) => {
+        const inbox = await transaction.inboxEvent.createMany({
+          data: [{ source: 'device_response_audit', externalId: event.id, payloadHash: sha256(stringifyJsonSafe(payload)) }],
+          skipDuplicates: true,
+        });
+        if (inbox.count === 0) return;
+        await transaction.auditLog.create({
+          data: {
+            actorType: 'device_agent', actorId: deviceId, action: 'device.job_acceptance_response',
+            targetType: payload.job_id ? 'device_job' : 'device', targetId: payload.job_id ?? deviceId,
+            metadata: { event_id: event.id, api_response: toJsonCompatible(payload) as Prisma.InputJsonValue },
+          },
+        });
+      });
+      return;
+    }
+    if (event.kind === 'PROFILE_INSTALL_RESULT') {
+      const payload = profileInstallResultSchema.parse(event.payload);
+      const now = new Date();
+      const observedAt = payload.observed_at_ms > now.valueOf() + 60_000 ? now : new Date(payload.observed_at_ms);
+      const metadata = {
+        event_id: event.id,
+        observed_at: observedAt.toISOString(),
+        api_response: toJsonCompatible(payload) as Prisma.InputJsonValue,
+      };
+      await this.prisma.$transaction(async (transaction) => {
+        const inbox = await transaction.inboxEvent.createMany({
+          data: [{ source: 'profile_install_result', externalId: event.id, payloadHash: sha256(stringifyJsonSafe(payload)) }],
+          skipDuplicates: true,
+        });
+        if (inbox.count === 0) return;
+        await transaction.device.update({
+          where: { id: deviceId },
+          data: { lastProfileInstallResult: toJsonCompatible(payload) as Prisma.InputJsonValue },
+        });
+        await transaction.auditLog.create({
+          data: {
+            actorType: 'device_agent', actorId: deviceId,
+            action: payload.result === 'installed' ? 'device.profile_installed' : 'device.profile_rejected',
+            targetType: 'device', targetId: deviceId,
+            reason: payload.message,
+            metadata,
+          },
+        });
+      });
+      return;
+    }
     if (event.kind === 'SMS_EVIDENCE') {
       const evidence = smsEvidenceSchema.parse(event.payload);
       const sim = await this.prisma.simWallet.findUnique({ where: { iccidHash: evidence.sim_iccid_hash } });
@@ -426,6 +509,7 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
           charging: heartbeat.charging,
           temperatureCelsius: heartbeat.temperature_celsius,
           networkType: heartbeat.network_type,
+          lastHeartbeatPayload: toJsonCompatible(heartbeat) as Prisma.InputJsonValue,
         },
       });
     });

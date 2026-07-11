@@ -11,9 +11,53 @@ import { addisFinancialDay } from '../fleet/sim-selection.service';
 import { loadPlatformPolicy } from '../configuration/platform-policy';
 import { CURRENT_DEVICE_PROFILE_VERSION_TEXT } from '../devices/device-profile-version';
 import { comparePersonNames } from '../parsers/name-normalizer';
+import { toJsonCompatible } from '../common/json-serialization';
 
 const deviceQualificationKeys = ['device_permissions', 'accessibility_enabled', 'reboot_survival'] as const;
 const simQualificationKeys = ['sms_attribution', 'ussd_subscription', 'balance_query', 'transfer_confirmation'] as const;
+const requiredDeviceProfiles = [
+  'telebirr.send-money.v1',
+  'telebirr.merchant-settlement.v1',
+  'telebirr.automatic-sweep.v1',
+  'telebirr.emergency-liquidity-move.v1',
+  'telebirr.balance-query.v1',
+].map((id) => `${id}@${CURRENT_DEVICE_PROFILE_VERSION_TEXT}`);
+
+type DeviceReadinessInput = {
+  status: string;
+  lastHeartbeatAt: Date | null;
+  lastPermissionsOk: boolean;
+  lastAccessibilityOk: boolean;
+  ussdProfileVersion: string | null;
+  activeUssdJobId: string | null;
+};
+
+export function deviceExecutionReadiness(device: DeviceReadinessInput, now = new Date()) {
+  const installed = new Set((device.ussdProfileVersion ?? '').split(',').map((value) => value.trim()).filter(Boolean));
+  const missingProfiles = requiredDeviceProfiles.filter((profile) => !installed.has(profile));
+  const heartbeatAgeSeconds = device.lastHeartbeatAt
+    ? Math.max(0, Math.floor((now.valueOf() - device.lastHeartbeatAt.valueOf()) / 1000))
+    : null;
+  const blockers: Array<{ code: string; message: string; detail?: unknown }> = [];
+  if (device.status !== 'online') blockers.push({ code: 'device_not_online', message: `Device status is ${device.status}` });
+  if (heartbeatAgeSeconds === null) blockers.push({ code: 'heartbeat_missing', message: 'No device heartbeat has been persisted' });
+  else if (heartbeatAgeSeconds > 90) blockers.push({ code: 'heartbeat_stale', message: `Last heartbeat is ${heartbeatAgeSeconds} seconds old` });
+  if (!device.lastPermissionsOk) blockers.push({ code: 'permissions_missing', message: 'One or more required Phone/SMS permissions are missing' });
+  if (!device.lastAccessibilityOk) blockers.push({ code: 'accessibility_disabled', message: 'Telebirr Accessibility service is disabled' });
+  if (missingProfiles.length) blockers.push({ code: 'profiles_missing', message: `${missingProfiles.length} signed USSD profile(s) are missing`, detail: missingProfiles });
+  if (device.activeUssdJobId) blockers.push({ code: 'ussd_mutex_busy', message: 'The handset-wide USSD lock is occupied', detail: { active_job_id: device.activeUssdJobId } });
+  return {
+    ready: blockers.length === 0,
+    heartbeat_age_seconds: heartbeatAgeSeconds,
+    permissions_ok: device.lastPermissionsOk,
+    accessibility_ok: device.lastAccessibilityOk,
+    installed_profiles: [...installed],
+    required_profiles: requiredDeviceProfiles,
+    missing_profiles: missingProfiles,
+    active_ussd_job_id: device.activeUssdJobId,
+    blockers,
+  };
+}
 
 export function calculateFleetCapacity(
   onlineQualifiedPhones: number,
@@ -174,7 +218,7 @@ export class AdminService {
       const records = await this.prisma.transfer.findMany({ include: { merchant: { select: { name: true } }, simWallet: { include: { device: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' }, take: 500 });
       return records.map((record) => ({ id: record.id, merchant: record.merchant.name, reference: record.reference, customer: `${record.destinationPhone.slice(0, 5)}••••${record.destinationPhone.slice(-3)}`, amount: minorToAmount(record.amountMinor), status: ['success', 'failed', 'cancelled'].includes(record.status) ? record.status : 'pending', p2p_status: record.status, created_at: record.createdAt.toISOString(), device: record.simWallet?.device.name ?? null }));
     }
-    const records = await this.prisma.deviceJob.findMany({ include: { device: { select: { name: true } }, simWallet: { select: { slot: true } }, ussdEvidence: { orderBy: { capturedAt: 'asc' } }, transferAttempt: { include: { transfer: { include: { merchant: { select: { name: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+    const records = await this.prisma.deviceJob.findMany({ include: { device: { select: { name: true, status: true, lastHeartbeatAt: true, lastPermissionsOk: true, lastAccessibilityOk: true, ussdProfileVersion: true, activeUssdJobId: true } }, simWallet: { select: { slot: true, status: true } }, ussdEvidence: { orderBy: { capturedAt: 'asc' } }, transferAttempt: { include: { transfer: { include: { merchant: { select: { name: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 500 });
     const auditRows = await this.prisma.auditLog.findMany({ where: { targetType: 'device_job', targetId: { in: records.map((record) => record.id) } }, orderBy: { createdAt: 'asc' } });
     const auditsByJob = new Map<string, typeof auditRows>();
     for (const row of auditRows) {
@@ -189,21 +233,37 @@ export class AdminService {
         ...(record.committedAt ? [{ at: record.committedAt.toISOString(), event: 'committed', detail: 'PIN submitted / money operation committed' }] : []),
         ...(record.errorCode ? [{ at: (record.completedAt ?? record.updatedAt).toISOString(), event: 'error', detail: record.errorCode }] : []),
         ...(record.lastScreenText ? [{ at: record.updatedAt.toISOString(), event: 'last_response', detail: record.lastScreenText }] : []),
-        ...(auditsByJob.get(record.id) ?? []).map((row) => ({ at: row.createdAt.toISOString(), event: row.action, detail: row.reason ?? 'Admin action' })),
+        ...(auditsByJob.get(record.id) ?? []).map((row) => ({
+          at: row.createdAt.toISOString(),
+          event: row.action,
+          detail: JSON.stringify({ reason: row.reason, response: row.metadata }, null, 2),
+        })),
         ...(['succeeded', 'failed', 'unknown', 'cancelled'].includes(record.state) ? [{ at: (record.completedAt ?? record.updatedAt).toISOString(), event: record.state, detail: `Job finished as ${record.state}` }] : []),
       ].sort((a, b) => a.at.localeCompare(b.at));
-      return { id: record.id, merchant: record.transferAttempt?.transfer.merchant.name ?? 'System', reference: record.transferAttempt?.transfer.reference ?? record.id, customer: record.type.replaceAll('_', ' '), amount: record.transferAttempt ? minorToAmount(record.transferAttempt.transfer.amountMinor) : '0.00', status: record.state === 'succeeded' ? 'success' : record.state === 'failed' ? 'failed' : record.state, p2p_status: record.state, created_at: record.createdAt.toISOString(), device: record.device ? `${record.device.name} · S${record.simWallet.slot + 1}` : null, log, can_execute_now: record.state === 'queued', can_retry: record.state === 'failed' && !record.committedAt };
+      const readiness = record.device ? deviceExecutionReadiness(record.device) : {
+        ready: false,
+        blockers: [{ code: 'device_unassigned', message: 'No phone is assigned to this job' }],
+      };
+      const blockers = [...readiness.blockers];
+      if (record.expiresAt <= new Date()) blockers.push({ code: 'job_expired', message: 'The job has expired and cannot be leased' });
+      if (!['pending', 'active', 'payout_stale'].includes(record.simWallet.status)) blockers.push({ code: 'sim_unavailable', message: `SIM status is ${record.simWallet.status}` });
+      return { id: record.id, merchant: record.transferAttempt?.transfer.merchant.name ?? 'System', reference: record.transferAttempt?.transfer.reference ?? record.id, customer: record.type.replaceAll('_', ' '), amount: record.transferAttempt ? minorToAmount(record.transferAttempt.transfer.amountMinor) : '0.00', status: record.state === 'succeeded' ? 'success' : record.state === 'failed' ? 'failed' : record.state, p2p_status: record.state, created_at: record.createdAt.toISOString(), device: record.device ? `${record.device.name} · S${record.simWallet.slot + 1}` : null, log, readiness: { ...readiness, ready: blockers.length === 0, blockers }, can_execute_now: record.state === 'queued', can_retry: record.state === 'failed' && !record.committedAt };
     });
   }
 
   async executeDeviceJobNow(jobId: string, actorId: string) {
     return this.prisma.$transaction(async (transaction) => {
-      const job = await transaction.deviceJob.findUnique({ where: { id: jobId } });
+      const job = await transaction.deviceJob.findUnique({ where: { id: jobId }, include: { device: true, simWallet: true } });
       if (!job) throw new ApiException('not_found', 'Device job was not found', HttpStatus.NOT_FOUND);
       if (job.state !== 'queued') throw new ApiException('invalid_state', 'Only queued jobs can be executed now', HttpStatus.CONFLICT);
-      const updated = await transaction.deviceJob.update({ where: { id: jobId }, data: { priority: 1_000_000 } });
-      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId, action: 'device_job.execute_now', targetType: 'device_job', targetId: jobId, reason: 'Admin requested immediate execution' } });
-      return { id: updated.id, state: updated.state, priority: updated.priority };
+      const readiness = job.device ? deviceExecutionReadiness(job.device) : { ready: false, blockers: [{ code: 'device_unassigned', message: 'No phone is assigned to this job' }] };
+      const blockers = [...readiness.blockers];
+      if (job.expiresAt <= new Date()) blockers.push({ code: 'job_expired', message: 'The job has expired and must be replaced' });
+      if (!['pending', 'active', 'payout_stale'].includes(job.simWallet.status)) blockers.push({ code: 'sim_unavailable', message: `SIM status is ${job.simWallet.status}` });
+      const response = { id: job.id, state: job.state, priority: 1_000_000, execution_requested: blockers.length === 0, blockers, readiness };
+      await transaction.deviceJob.update({ where: { id: jobId }, data: { priority: 1_000_000 } });
+      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId, action: 'device_job.execute_now', targetType: 'device_job', targetId: jobId, reason: blockers.length ? 'Execution blocked; diagnostics returned' : 'Admin requested immediate execution', metadata: toJsonCompatible(response) as Prisma.InputJsonValue } });
+      return response;
     });
   }
 
@@ -650,6 +710,8 @@ export class AdminService {
           openclaw_paired: device.openclawPaired,
           permissions_ok: device.lastPermissionsOk,
           accessibility_ok: device.lastAccessibilityOk,
+          readiness: deviceExecutionReadiness(device),
+          last_profile_install_result: device.lastProfileInstallResult,
           sims: device.sims.map((sim) => ({
             id: sim.id,
             slot: sim.slot,
@@ -666,6 +728,49 @@ export class AdminService {
         })),
       })),
     }));
+  }
+
+  async deviceDiagnostics(deviceId: string) {
+    const device = await this.prisma.device.findUnique({
+      where: { id: deviceId },
+      include: {
+        sims: { orderBy: { slot: 'asc' } },
+        activeUssdJob: { select: { id: true, type: true, state: true, leaseExpiresAt: true, expiresAt: true, errorCode: true, updatedAt: true } },
+      },
+    });
+    if (!device) throw new ApiException('not_found', 'Device was not found', HttpStatus.NOT_FOUND);
+    const events = await this.prisma.auditLog.findMany({
+      where: { actorId: deviceId, actorType: 'device_agent' },
+      orderBy: { createdAt: 'desc' },
+      take: 100,
+    });
+    return {
+      device_id: device.id,
+      generated_at: new Date().toISOString(),
+      readiness: deviceExecutionReadiness(device),
+      state: {
+        status: device.status,
+        last_heartbeat_at: device.lastHeartbeatAt?.toISOString() ?? null,
+        permissions_ok: device.lastPermissionsOk,
+        accessibility_ok: device.lastAccessibilityOk,
+        agent_version: device.agentVersion,
+        ussd_profile_version: device.ussdProfileVersion,
+        active_ussd_job: device.activeUssdJob,
+        sims: device.sims.map((sim) => ({
+          id: sim.id, slot: sim.slot + 1, status: sim.status, subscription_id: sim.subscriptionId,
+          phone_number: sim.phoneNumber, account_name: sim.telebirrAccountName,
+          last_balance_at: sim.lastBalanceAt?.toISOString() ?? null, last_sms_at: sim.lastSmsAt?.toISOString() ?? null,
+        })),
+      },
+      full_last_heartbeat_response: device.lastHeartbeatPayload,
+      full_last_profile_install_response: device.lastProfileInstallResult,
+      response_log: events.map((event) => ({
+        at: event.createdAt.toISOString(),
+        event: event.action,
+        reason: event.reason,
+        response: event.metadata,
+      })),
+    };
   }
 
   async treasuryWallets() {
