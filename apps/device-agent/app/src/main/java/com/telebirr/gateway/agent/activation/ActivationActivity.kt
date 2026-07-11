@@ -24,6 +24,11 @@ import com.telebirr.gateway.agent.service.HeartbeatService
 import com.telebirr.gateway.agent.transport.MtlsOkHttpClientFactory
 import com.telebirr.gateway.agent.ussd.AndroidUssdDialer
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.Request
+import java.text.DateFormat
+import java.util.Date
 import java.util.concurrent.TimeUnit
 
 class ActivationActivity : AppCompatActivity() {
@@ -39,11 +44,50 @@ class ActivationActivity : AppCompatActivity() {
 
         val application = application as AgentApplication
         val status = findViewById<TextView>(R.id.activationStatus)
+        val gatewayField = findViewById<EditText>(R.id.gatewayUrl)
+        val backendStatus = findViewById<TextView>(R.id.backendStatus)
+        application.container.config.current()?.let { gatewayField.setText(it.gatewayBaseUrl) }
         status.text = application.container.config.current()?.let { "Activated: ${it.deviceId}" }
             ?: getString(R.string.not_activated)
 
+        findViewById<Button>(R.id.testBackendButton).setOnClickListener {
+            val gateway = gatewayField.text.toString().trim().trimEnd('/')
+            if (gateway.isBlank()) {
+                backendStatus.text = getString(R.string.backend_url_required)
+                return@setOnClickListener
+            }
+            backendStatus.text = getString(R.string.backend_testing)
+            lifecycleScope.launch {
+                val result = withContext(Dispatchers.IO) {
+                    runCatching {
+                        val client = MtlsOkHttpClientFactory.create(this@ActivationActivity, "")
+                            .newBuilder()
+                            .callTimeout(10, TimeUnit.SECONDS)
+                            .build()
+                        client.newCall(Request.Builder().url("$gateway/health/live").get().build())
+                            .execute().use { response ->
+                                require(response.isSuccessful) { "HTTP ${response.code}" }
+                                "HTTP ${response.code}"
+                            }
+                    }
+                }
+                result.onSuccess { response ->
+                    backendStatus.text = getString(
+                        R.string.backend_connected,
+                        response,
+                        DateFormat.getDateTimeInstance().format(Date()),
+                    )
+                }.onFailure { error ->
+                    backendStatus.text = getString(
+                        R.string.backend_failed,
+                        error.message ?: error.javaClass.simpleName,
+                    )
+                }
+            }
+        }
+
         findViewById<Button>(R.id.activateButton).setOnClickListener {
-            val gateway = findViewById<EditText>(R.id.gatewayUrl).text.toString().trim()
+            val gateway = gatewayField.text.toString().trim()
             val codeField = findViewById<EditText>(R.id.activationCode)
             val code = codeField.text.toString().trim()
             if (code.isBlank()) {

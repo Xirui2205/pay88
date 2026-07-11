@@ -7,6 +7,12 @@
     <string name="gateway_url_hint">https://devices.example.com</string>
     <string name="activation_code_hint">One-time activation code</string>
     <string name="activate">Activate</string>
+    <string name="test_backend_connection">Test backend connection</string>
+    <string name="backend_not_tested">Backend status: not tested</string>
+    <string name="backend_testing">Backend status: testing…</string>
+    <string name="backend_connected">Backend connected ✓\n%1$s\nLast checked: %2$s</string>
+    <string name="backend_failed">Backend connection failed ✗\n%1$s</string>
+    <string name="backend_url_required">Enter the backend URL first</string>
     <string name="save_pin">Store local SIM PIN</string>
     <string name="iccid_hint">SIM ICCID</string>
     <string name="pin_hint">Telebirr PIN (local only)</string>

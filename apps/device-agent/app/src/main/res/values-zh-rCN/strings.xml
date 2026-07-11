@@ -7,6 +7,12 @@
     <string name="gateway_url_hint">https://devices.example.com</string>
     <string name="activation_code_hint">一次性激活码</string>
     <string name="activate">激活</string>
+    <string name="test_backend_connection">测试后端连接</string>
+    <string name="backend_not_tested">后端状态：尚未测试</string>
+    <string name="backend_testing">后端状态：正在测试…</string>
+    <string name="backend_connected">后端已连接 ✓\n%1$s\n最后检查：%2$s</string>
+    <string name="backend_failed">后端连接失败 ✗\n%1$s</string>
+    <string name="backend_url_required">请先输入后端地址</string>
     <string name="save_pin">保存本机 SIM PIN</string>
     <string name="iccid_hint">SIM ICCID</string>
     <string name="pin_hint">Telebirr PIN（仅保存在本机）</string>

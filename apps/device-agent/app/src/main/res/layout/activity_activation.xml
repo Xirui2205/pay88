@@ -32,6 +32,20 @@
             android:inputType="textUri"
             android:singleLine="true" />
 
+        <Button
+            android:id="@+id/testBackendButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/test_backend_connection" />
+
+        <TextView
+            android:id="@+id/backendStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/backend_not_tested" />
+
         <EditText
             android:id="@+id/activationCode"
             android:layout_width="match_parent"
