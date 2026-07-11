@@ -34,14 +34,14 @@
 1. 在恢复出厂后的首次设置界面，用管理员提供的 AirDroid 登记方式/二维码。
 2. 控制台必须显示 **Fully managed / Device Owner**。
 3. 下发 `Telebirr-Pilot` 多应用 Kiosk 策略。
-4. 只允许拨号、短信、Telebirr Agent、OpenClaw 和 MDM 必需组件。
+4. 只允许拨号、短信、Telebirr Agent 和 MDM 必需组件。
 5. 开启应用更新、设备健康、远程锁定/擦除和有审计的远程支持。
 6. 禁止远程文件工具访问 Telebirr Agent 私有目录。
 7. 测试无人值守远程查看/控制；如 TECNO 需要 Accessibility 插件，授权后必须验证它与 Telebirr 服务可同时运行。
 
 ## 5. HiOS 后台保活
 
-对 Telebirr Agent、OpenClaw、MDM Daemon 分别执行：
+对 Telebirr Agent 和 MDM Daemon 分别执行：
 
 1. **设置 > 应用 > 电池**：选择无限制/不优化。
 2. 开启自启动和后台活动。
@@ -51,15 +51,7 @@
 6. 开启自动日期、时间和时区。
 7. 按机房策略设置常亮/充电，并测试长期充电温度告警。
 
-## 6. OpenClaw
-
-1. 只安装后台批准的官方签名 OpenClaw Android APK。
-2. 打开 **Connect**，扫描私有 Gateway 配对码。
-3. 平台人员核对设备后批准 pairing。
-4. 确认前台连接长期在线。
-5. OpenClaw 不得获得短信、Accessibility、shell 或任何财务权限。
-
-## 7. Telebirr Agent 激活
+## 6. Telebirr Agent 激活
 
 1. 通过 MDM 安装平台签名 APK，核对版本和签名指纹。
 2. 授予本 build 实际请求的运行时权限：短信接收、电话状态/电话号码和呼叫。如 Android 或 MDM 提供通知开关，则允许通知。本 build 不请求 `READ_SMS`。
@@ -67,10 +59,8 @@
 4. 关闭电池优化并允许自启动。
 5. 输入已批准的 Device Gateway `https://` URL 和短期激活码，然后点击 **激活**。将屏幕显示的设备 ID 与 Platform Admin 核对；本机屏幕不显示地点或设备组。
 6. Agent 获取可撤销的设备令牌，并使用 Android Keystore 加密保存；云端返回内容绝不能包含钱包 PIN。
-7. 只有完成第 6.2 至 6.4 步且官方 OpenClaw 已明确显示在线后，才可打开 Telebirr Agent 引导页并在手机本地点击 **Confirm OpenClaw is paired**。该按钮不能代替实际配对或平台批准。
-8. 确认下一次签名心跳报告 `openclaw_paired=true`。这只属于验收证据，不会激活手机或任一 SIM。
 
-## 8. 本地设置两个钱包 PIN
+## 7. 本地设置两个钱包 PIN
 
 对每个卡槽分别执行：
 
@@ -83,11 +73,11 @@
 7. 如果显示 **Telebirr PIN 与确认 PIN 不一致**，请在本机重新输入两个 PIN 字段；每次尝试后，两个 PIN 字段都会被清空。
 8. 重启，确认只有合法签名任务能使用解密后的 PIN。
 
-## 9. 双卡验收
+## 8. 双卡验收
 
 SIM1、SIM2 必须分别完成：
 
-1. 心跳和权限检查，包括在真实配对后由本地确认生成的签名 `openclaw_paired=true` 证据。
+1. 心跳和权限检查。
 2. 收款短信卡槽归属和解析。
 3. `*127#` 菜单语义捕获（不输入 PIN）。
 4. 完整余额查询，确认 127 短信中的主余额、奖励、燃油、Pocket 分开保存。
@@ -95,12 +85,12 @@ SIM1、SIM2 必须分别完成：
 6. 核对转出短信的交易号、手续费、VAT 和余额。
 7. 重放重复短信，确认不会重复入账。
 8. 断网后恢复，确认离线队列只上传一次。
-9. 重启手机，确认三个 Agent 恢复，权限保留，OpenClaw 重连，三分钟内恢复心跳。
+9. 重启手机，确认 Agent 和 MDM 恢复、权限保留，并在三分钟内恢复心跳。
 10. 开启远程支持，确认无法看到 PIN 或 Agent 私有存储。
 
 在 Platform Admin 中点击 **Start / resume run**，对每个必需的手机/SIM 检查使用 **Record** 和 **Persist evidence**，然后由获授权的平台人员点击 **Approve with password**。ICCID 变化、权限缺失、bootloader 解锁、APK 签名不符或卡槽归属不清均属于必须隔离的情况。
 
-## 10. 上线和恢复
+## 9. 上线和恢复
 
 1. 下发最终多应用 Kiosk，粘贴资产标签。
 2. 接入批准的供电、散热和网络。
@@ -118,6 +108,6 @@ SIM1、SIM2 必须分别完成：
 
 管理后台的“添加手机”向导必须联网使用。设备记录和一次性激活码均由平台 API 创建；操作员不得自行编造或重复使用本地激活码。重新生成激活码时，所有尚未使用的旧激活码都会立即失效。
 
-激活后手机只能进入 `qualifying` 状态。操作员必须先完成官方 OpenClaw 配对、取得平台批准并确认在线，然后才可在 Telebirr Agent 点击 **Confirm OpenClaw is paired**。随后签名心跳可以记录权限、无障碍服务和 OpenClaw 证据，但不能激活 SIM 钱包。必须为手机及每个 SIM 卡在持久化验收记录中填写所有必选检查的证据引用。全部检查为 `passed` 后，平台管理员或操作员必须重新输入个人密码并批准最新验收记录；只有该批准操作可以把 SIM 钱包从 `pending` 改为 `active`。
+激活后手机只能进入 `qualifying` 状态。签名心跳可以记录权限和无障碍服务证据，但不能激活 SIM 钱包。必须为手机及每个 SIM 卡在持久化验收记录中填写所有必选检查的证据引用。全部检查为 `passed` 后，平台管理员或操作员必须重新输入个人密码并批准最新验收记录；只有该批准操作可以把 SIM 钱包从 `pending` 改为 `active`。
 
 如果 ICCID、卡槽、号码、注册姓名、短信归属、USSD 卡选择、余额回复或转账确认中任何一项不确定，必须拒绝验收。心跳不得重新启用已拒绝、隔离或停用的 SIM 卡。

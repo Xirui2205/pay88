@@ -60,7 +60,7 @@ For each of the two SIM slots, independently verify SMS subscription attribution
 correlation, local Keystore PIN use, and quarantine after a deliberate SIM swap.
 Then verify reboot, app kill, network loss, offline-spool replay, charging and
 thermal heartbeats, certificate revocation, profile rollback prevention, and a
-post-PIN unknown result with no automatic retry. AirDroid unattended control,
-OpenClaw pairing, and this Accessibility service must coexist for 72 hours without
+post-PIN unknown result with no automatic retry. AirDroid unattended control and
+this Accessibility service must coexist for 72 hours without
 permission loss. If unattended control conflicts on this build, qualify the stated
 ManageEngine Cloud Universal Add-on fallback; never work around it by rooting.

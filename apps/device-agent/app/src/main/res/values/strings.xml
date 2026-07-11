@@ -16,9 +16,6 @@
     <string name="activating">Activating…</string>
     <string name="activated_device">Activated: %1$s</string>
     <string name="activation_failed">Activation failed</string>
-    <string name="confirm_openclaw_pairing">Confirm OpenClaw is paired</string>
-    <string name="activate_before_openclaw_confirmation">Activate this Telebirr Agent before confirming OpenClaw</string>
-    <string name="openclaw_pairing_confirmed">OpenClaw pairing confirmed locally; platform qualification is still required</string>
     <string name="local_pin_stored">Local PIN stored for SIM ending %1$s</string>
     <string name="pin_fields_required">SIM ICCID, Telebirr PIN, and PIN confirmation are required</string>
     <string name="pin_confirmation_mismatch">Telebirr PIN and confirmation do not match</string>

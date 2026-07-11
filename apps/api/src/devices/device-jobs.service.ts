@@ -215,7 +215,6 @@ export class DeviceJobsService {
         for (const [key, passed] of [
           ['device_permissions', heartbeat.permissions_ok],
           ['accessibility_enabled', heartbeat.accessibility_ok],
-          ['openclaw_paired', heartbeat.openclaw_paired],
         ] as const) {
           await transaction.deviceQualificationCheck.updateMany({
             where: { runId: openQualification.id, key },

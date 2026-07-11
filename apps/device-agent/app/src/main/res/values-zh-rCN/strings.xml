@@ -16,9 +16,6 @@
     <string name="activating">正在激活…</string>
     <string name="activated_device">已激活：%1$s</string>
     <string name="activation_failed">激活失败</string>
-    <string name="confirm_openclaw_pairing">确认 OpenClaw 已配对</string>
-    <string name="activate_before_openclaw_confirmation">请先激活 Telebirr 代理，再确认 OpenClaw</string>
-    <string name="openclaw_pairing_confirmed">已在本机确认 OpenClaw 配对；仍需平台完成资格审批</string>
     <string name="local_pin_stored">已为尾号 %1$s 的 SIM 保存本机 PIN</string>
     <string name="pin_fields_required">必须填写 SIM ICCID、Telebirr PIN 和 PIN 确认</string>
     <string name="pin_confirmation_mismatch">Telebirr PIN 与确认 PIN 不一致</string>

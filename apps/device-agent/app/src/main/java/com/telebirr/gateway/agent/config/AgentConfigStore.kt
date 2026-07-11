@@ -16,7 +16,6 @@ data class AgentConfig(
     val signingKeyId: String,
     val signingPublicKeyX509: String,
     val heartbeatIntervalSeconds: Int,
-    val openClawPaired: Boolean,
 )
 
 class AgentConfigStore(context: Context) {
@@ -56,7 +55,6 @@ class AgentConfigStore(context: Context) {
             keyId,
             signingKey,
             preferences.getInt(HEARTBEAT_INTERVAL_SECONDS, 30),
-            preferences.getBoolean(OPENCLAW_PAIRED, false),
         )
     }
 
@@ -84,12 +82,7 @@ class AgentConfigStore(context: Context) {
             putString(DEVICE_TOKEN_IV, CryptoEncoding.base64(encryptedToken.iv))
             putString(DEVICE_TOKEN_CIPHERTEXT, CryptoEncoding.base64(encryptedToken.ciphertext))
             putInt(HEARTBEAT_INTERVAL_SECONDS, config.heartbeatIntervalSeconds)
-            putBoolean(OPENCLAW_PAIRED, config.openClawPaired)
         }
-    }
-
-    fun setOpenClawPaired(paired: Boolean) = preferences.edit(commit = true) {
-        putBoolean(OPENCLAW_PAIRED, paired)
     }
 
     fun clearActivation() = preferences.edit(commit = true) { clear() }
@@ -104,7 +97,6 @@ class AgentConfigStore(context: Context) {
         private const val SIGNING_KEY_ID = "signing_key_id"
         private const val SIGNING_KEY = "signing_public_key_x509"
         private const val HEARTBEAT_INTERVAL_SECONDS = "heartbeat_interval_seconds"
-        private const val OPENCLAW_PAIRED = "openclaw_paired"
 
         fun validateGatewayUrl(url: String) {
             val uri = runCatching { URI(url) }.getOrNull()

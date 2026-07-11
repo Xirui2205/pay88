@@ -5,6 +5,17 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val releaseKeystorePath = providers.environmentVariable("TELEBIRR_RELEASE_KEYSTORE").orNull
+val releaseStorePassword = providers.environmentVariable("TELEBIRR_RELEASE_STORE_PASSWORD").orNull
+val releaseKeyAlias = providers.environmentVariable("TELEBIRR_RELEASE_KEY_ALIAS").orNull
+val releaseKeyPassword = providers.environmentVariable("TELEBIRR_RELEASE_KEY_PASSWORD").orNull
+val releaseSigningConfigured = listOf(
+    releaseKeystorePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.telebirr.gateway.agent"
     compileSdk = 35
@@ -15,12 +26,25 @@ android {
         // Android 12 is the qualified V1 production target. The code intentionally
         // keeps API 26 compatibility for a future agent-only fleet.
         targetSdk = 31
-        versionCode = 3
-        versionName = "1.1.0"
+        versionCode = 4
+        versionName = "1.1.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
         buildConfigField("String", "AGENT_PROTOCOL_VERSION", "\"1\"")
+    }
+
+    signingConfigs {
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(requireNotNull(releaseKeystorePath))
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+                enableV1Signing = true
+                enableV2Signing = true
+            }
+        }
     }
 
     buildTypes {
@@ -29,6 +53,7 @@ android {
             versionNameSuffix = "-debug"
         }
         release {
+            signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

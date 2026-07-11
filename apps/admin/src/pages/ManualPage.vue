@@ -7,18 +7,18 @@ const route=useRoute(); const router=useRouter(); const lang=computed(()=>route.
 const en: ManualSection[]=[
   ['Before you begin',['Use only the approved stock Android build. Do not root, unlock the bootloader or enable permanent ADB.','Prepare both SIM ICCIDs, Telebirr numbers, registered names, a stable charger and Wi-Fi/mobile data.']],
   ['Factory reset and MDM',['Factory-reset the phone and stop on the first Welcome screen.','Tap a blank area six times and enroll AirDroid Business as Device Owner using the organization QR code.','Confirm Device Owner/Fully managed before applying the Telebirr-Pilot multi-app kiosk policy.']],
-  ['Install workload applications',['Install the signed Telebirr Device Agent from the MDM app library.','Install and pair the official OpenClaw Android companion with the private Gateway.','Never install APKs from chat messages or unofficial download sites.']],
-  ['Configure HiOS',['Allow autostart and unrestricted battery use for Telebirr Agent, OpenClaw and AirDroid.','Grant Phone, SMS, Notifications and Accessibility permissions to Telebirr Agent.','Disable battery optimization and verify that Accessibility survives a reboot.']],
-  ['Activate and secure',['In Telebirr Device Agent type the Device Gateway URL, one-time activation code and MDM certificate alias, then tap Activate.','With remote control stopped, enter and confirm each Telebirr PIN locally. The PIN is encrypted by Android Keystore and never sent to the cloud.','Confirm OpenClaw is paired locally only after the official app is connected and platform-approved.']],
+  ['Install workload application',['Install the signed Telebirr Device Agent from the MDM app library.','Never install APKs from chat messages or unofficial download sites.']],
+  ['Configure HiOS',['Allow autostart and unrestricted battery use for Telebirr Agent and AirDroid.','Grant Phone, SMS, Notifications and Accessibility permissions to Telebirr Agent.','Disable battery optimization and verify that Accessibility survives a reboot.']],
+  ['Activate and secure',['In Telebirr Device Agent type the Device Gateway URL and one-time activation code, then tap Activate.','With remote control stopped, enter and confirm each Telebirr PIN locally. The PIN is encrypted by Android Keystore and never sent to the cloud.']],
   ['Qualify both SIMs',['For each slot, verify ICCID and subscription attribution.','Run SMS receipt, USSD menu, balance query and low-value transfer confirmation tests.','Record every check, reboot and interrupt the network; authorized staff then use Approve with password.']],
   ['Recovery',['Quarantine the device and stop new jobs. Never retry a post-PIN unknown transfer.','Use only exact signed regional firmware obtained through TECNO/Carlcare.','Factory-reset, re-enroll, enter PINs locally and repeat full qualification.']],
 ]
 const zh: ManualSection[]=[
   ['开始之前',['仅使用已批准的原厂 Android 系统。禁止 Root、解锁 Bootloader 或永久开启 ADB。','准备两张 SIM 卡的 ICCID、Telebirr 号码、实名、稳定充电器及网络。']],
   ['恢复出厂设置与 MDM',['恢复出厂设置，并停留在第一个 Welcome 界面。','快速点击空白区域六次，使用企业二维码将 AirDroid Business 注册为 Device Owner。','确认 Device Owner/Fully managed 后再应用 Telebirr-Pilot 多应用 Kiosk 策略。']],
-  ['安装工作应用',['从 MDM 应用库安装已签名的 Telebirr Device Agent。','安装 OpenClaw 官方 Android 客户端，并与私有 Gateway 配对。','严禁安装聊天消息或非官方网站提供的 APK。']],
-  ['配置 HiOS',['允许 Telebirr Agent、OpenClaw 与 AirDroid 自启动及无限制电池使用。','向 Telebirr Agent 授予电话、短信、通知及无障碍权限。','关闭电池优化，重启后确认无障碍服务仍然有效。']],
-  ['激活与安全',['在 Telebirr Device Agent 中输入 Device Gateway URL、一次性激活码和 MDM 证书别名，然后点击激活。','停止远程控制后，在手机本地输入并确认每张卡的 Telebirr PIN。PIN 由 Android Keystore 加密，绝不上传云端。','官方 OpenClaw 已连接且平台批准后，才在本机确认 OpenClaw 已配对。']],
+  ['安装工作应用',['从 MDM 应用库安装已签名的 Telebirr Device Agent。','严禁安装聊天消息或非官方网站提供的 APK。']],
+  ['配置 HiOS',['允许 Telebirr Agent 与 AirDroid 自启动及无限制电池使用。','向 Telebirr Agent 授予电话、短信、通知及无障碍权限。','关闭电池优化，重启后确认无障碍服务仍然有效。']],
+  ['激活与安全',['在 Telebirr Device Agent 中输入 Device Gateway URL 和一次性激活码，然后点击激活。','停止远程控制后，在手机本地输入并确认每张卡的 Telebirr PIN。PIN 由 Android Keystore 加密，绝不上传云端。']],
   ['双卡验收',['逐卡核对 ICCID 与订阅槽位归属。','执行短信接收、USSD 菜单、余额查询及小额转账确认测试。','记录每项检查，完成重启和断网测试；最后由获授权人员点击 Approve with password。']],
   ['故障恢复',['隔离设备并停止分配新任务。PIN 提交后的未知交易绝不能自动重试。','仅使用 TECNO/Carlcare 提供的匹配区域官方签名固件。','恢复出厂设置、重新注册、本地输入 PIN，并重新执行全部验收。']],
 ]

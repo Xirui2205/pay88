@@ -62,7 +62,8 @@ class HeartbeatCollector(
             ).all(::granted)
             put("accessibility_ok", accessibilityOk)
             put("permissions_ok", permissionsOk)
-            put("openclaw_paired", config.openClawPaired)
+            // Protocol compatibility only; the pilot has no OpenClaw phone dependency.
+            put("openclaw_paired", false)
             put("permissions", buildJsonObject {
                 put("receive_sms", granted(Manifest.permission.RECEIVE_SMS))
                 put("read_phone_state", granted(Manifest.permission.READ_PHONE_STATE))

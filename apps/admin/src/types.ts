@@ -26,7 +26,6 @@ export interface Device {
   temperature: number
   appVersion: string
   profileVersion: string
-  openClawPaired: boolean
   sims: SimWallet[]
 }
 

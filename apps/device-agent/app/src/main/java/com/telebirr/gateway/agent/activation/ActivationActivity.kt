@@ -41,15 +41,6 @@ class ActivationActivity : AppCompatActivity() {
         status.text = application.container.config.current()?.let { "Activated: ${it.deviceId}" }
             ?: getString(R.string.not_activated)
 
-        findViewById<Button>(R.id.confirmOpenClawButton).setOnClickListener {
-            if (application.container.config.current() == null) {
-                status.text = getString(R.string.activate_before_openclaw_confirmation)
-            } else {
-                application.container.config.setOpenClawPaired(true)
-                status.text = getString(R.string.openclaw_pairing_confirmed)
-            }
-        }
-
         findViewById<Button>(R.id.activateButton).setOnClickListener {
             val gateway = findViewById<EditText>(R.id.gatewayUrl).text.toString().trim()
             val codeField = findViewById<EditText>(R.id.activationCode)
@@ -111,7 +102,6 @@ class ActivationActivity : AppCompatActivity() {
                             signingPublicKeyX509 = com.telebirr.gateway.agent.crypto.PayloadVerifier
                                 .x509Base64FromPem(response.signingPublicKeyPem),
                             heartbeatIntervalSeconds = response.heartbeatIntervalSeconds,
-                            openClawPaired = false,
                         ),
                     )
                     response.deviceId

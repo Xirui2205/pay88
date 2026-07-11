@@ -34,14 +34,14 @@ For the pilot, accept only TECNO CAMON 18 Premier model CH9n with Android 12 and
 1. From the factory-reset setup screen use the AirDroid enrollment method/QR issued by the fleet administrator.
 2. Confirm the console reports **Fully managed / Device Owner**.
 3. Apply the `Telebirr-Pilot` multi-app kiosk policy.
-4. Allow only Dialer, Messages, Telebirr Agent, OpenClaw and the MDM components.
+4. Allow only Dialer, Messages, Telebirr Agent and the MDM components.
 5. Enable application auto-update, device health monitoring, remote lock/wipe and audited remote support.
 6. Do not enable remote file access to the Telebirr Agent private storage.
 7. Test unattended remote view/control. If the TECNO needs an Accessibility add-on, grant it and later prove it can coexist with the Telebirr Accessibility service.
 
 ## 5. HiOS reliability configuration
 
-Repeat for Telebirr Agent, OpenClaw and the MDM daemon:
+Repeat for Telebirr Agent and the MDM daemon:
 
 1. **Settings > Apps > Battery**: select unrestricted/no optimization.
 2. Enable Auto-start and background activity.
@@ -51,15 +51,7 @@ Repeat for Telebirr Agent, OpenClaw and the MDM daemon:
 6. Keep automatic date/time/timezone enabled.
 7. Configure the screen and charging policy approved for the farm; verify thermal alarms under continuous charging.
 
-## 6. Install and pair OpenClaw
-
-1. Install only the official signed OpenClaw Android APK approved in Admin.
-2. Open **Connect**, scan the private Gateway setup code and submit pairing.
-3. Platform staff approve the exact device request.
-4. Confirm the app maintains its foreground connection and appears online in OpenClaw.
-5. Do not grant OpenClaw SMS, Accessibility, shell or financial permissions beyond the approved companion profile.
-
-## 7. Install and activate Telebirr Agent
+## 6. Install and activate Telebirr Agent
 
 1. Install the platform-signed APK distributed by MDM; verify version and signing fingerprint displayed in Admin.
 2. Grant the runtime permissions requested by this build: SMS receipt, phone state/phone numbers and calls. Allow notifications if Android or MDM presents that control. This build does not request `READ_SMS`.
@@ -67,10 +59,8 @@ Repeat for Telebirr Agent, OpenClaw and the MDM daemon:
 4. Exempt the app from battery optimization and permit auto-start.
 5. Type the approved Device Gateway `https://` URL and short-lived activation code, then tap **Activate**. Confirm the displayed device ID with Platform Admin; the local screen does not display location or group.
 6. The agent receives a revocable per-device token and encrypts it with Android Keystore. Cloud activation must never return a wallet PIN.
-7. Only after Steps 6.2-6.4 have completed and the official OpenClaw app is visibly online, open the Telebirr Agent onboarding screen and tap **Confirm OpenClaw is paired** locally. Do not use this control as a substitute for pairing or platform approval.
-8. Confirm the next signed heartbeat reports `openclaw_paired=true`. This is qualification evidence only; it does not activate the phone or either SIM.
 
-## 8. Configure wallets and local PINs
+## 7. Configure wallets and local PINs
 
 For each slot:
 
@@ -83,11 +73,11 @@ For each slot:
 7. If the UI reports **Telebirr PIN and confirmation do not match**, re-enter both fields locally; both PIN fields are cleared after every attempt.
 8. Reboot and confirm the agent can unlock its encrypted value only for an authorized signed job.
 
-## 9. Qualification tests
+## 8. Qualification tests
 
 Run every test separately on SIM 1 and SIM 2:
 
-1. Heartbeat and permission test, including signed `openclaw_paired=true` evidence created by the local confirmation after real pairing.
+1. Heartbeat and permission test.
 2. Incoming deposit SMS attribution and parsing.
 3. `*127#` semantic menu capture without entering a PIN.
 4. Full balance query; confirm the SMS from 127 updates main, incentive, fuel and pocket balances separately.
@@ -95,12 +85,12 @@ Run every test separately on SIM 1 and SIM 2:
 6. Confirm outgoing SMS transaction ID, fee, VAT and remaining balance.
 7. Duplicate-SMS replay; confirm no duplicate credit/journal.
 8. Disable data during a test notification, restore it and verify offline spool upload once.
-9. Restart the phone and verify all three agents recover, permissions remain, OpenClaw reconnects and heartbeat returns within three minutes.
+9. Restart the phone and verify the Agent and MDM recover, permissions remain and heartbeat returns within three minutes.
 10. Start remote support and verify it cannot reveal PIN input or private agent storage.
 
 In Platform Admin click **Start / resume run**, use **Record** and **Persist evidence** for every required handset/SIM check, and then have authorized platform staff click **Approve with password**. A changed ICCID, missing permission, unlocked bootloader, unapproved app signature or ambiguous SIM attribution is a quarantine condition.
 
-## 10. Seal and operate
+## 9. Seal and operate
 
 1. Apply the final multi-app kiosk profile and physical asset label.
 2. Place the device on approved power, cooling and network.
@@ -113,13 +103,13 @@ In Platform Admin click **Start / resume run**, use **Record** and **Persist evi
 - **Permission lost:** quarantine, restore permission locally/remotely, rerun qualification.
 - **SIM changed:** quarantine both slot mappings, update inventory and rerun every dual-SIM test.
 - **Firmware issue:** drain jobs, revoke certificate, use official stock recovery, factory-reset, re-enroll and enter PIN locally.
-- **Lost/stolen:** quarantine, revoke device/OpenClaw/MDM credentials, remote lock/wipe if reachable, reconcile both wallets.
+- **Lost/stolen:** quarantine, revoke device and MDM credentials, remote lock/wipe if reachable, reconcile both wallets.
 - **Decommission:** drain and sweep balances, verify zero active/unknown jobs, revoke all credentials, wipe via MDM, factory-reset and record disposal evidence.
 
 ## Server-controlled enrollment and approval
 
 The admin **Add phone** wizard must be online. It creates the device and one-time activation code through the platform API; operators must never invent or reuse a local code. Regenerating a code invalidates every unused earlier code.
 
-Activation only moves the handset to `qualifying`. The operator must first pair the official OpenClaw app, obtain platform approval, verify it online, and only then tap **Confirm OpenClaw is paired** in the Telebirr Agent. The resulting signed heartbeat may record permission, Accessibility and OpenClaw evidence, but it cannot activate a SIM wallet. For each handset and each SIM, record the mandatory qualification evidence reference in the persisted run. When every check is `passed`, a platform administrator or operator must re-enter their password and approve the latest run. Only this approval changes pending SIM wallets to `active`.
+Activation only moves the handset to `qualifying`. A signed heartbeat records permission and Accessibility evidence, but it cannot activate a SIM wallet. For each handset and each SIM, record the mandatory qualification evidence reference in the persisted run. When every check is `passed`, a platform administrator or operator must re-enter their password and approve the latest run. Only this approval changes pending SIM wallets to `active`.
 
 Reject the run if any ICCID, slot, number, registered name, SMS attribution, USSD subscription, balance response or transfer confirmation is uncertain. A rejected, quarantined or disabled SIM must never be enabled by heartbeat alone.

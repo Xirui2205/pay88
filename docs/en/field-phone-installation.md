@@ -6,13 +6,12 @@ Use this guide from the first **Welcome** screen on the phone.
 
 1. Get the Wi-Fi name and password.
 2. Get the AirDroid QR code.
-3. Get the OpenClaw setup code or QR code.
-4. Get the Device Gateway URL.
-5. Get the Telebirr Agent activation code.
-6. Get the SIM 1 ICCID.
-7. Get the SIM 2 ICCID.
-8. Keep the Telebirr PIN for SIM 1 with you.
-9. Keep the Telebirr PIN for SIM 2 with you.
+3. Get the Device Gateway URL.
+4. Get the Telebirr Agent activation code.
+5. Get the SIM 1 ICCID.
+6. Get the SIM 2 ICCID.
+7. Keep the Telebirr PIN for SIM 1 with you.
+8. Keep the Telebirr PIN for SIM 2 with you.
 
 <!-- pagebreak -->
 
@@ -76,12 +75,11 @@ Use this guide from the first **Welcome** screen on the phone.
 
 <!-- pagebreak -->
 
-## 4. Wait for the two applications
+## 4. Wait for the application
 
 1. Keep the phone connected to Wi-Fi.
 2. Keep the phone connected to the charger.
-3. Wait for the **OpenClaw** icon to appear.
-4. Wait for the **Telebirr Device Agent** icon to appear.
+3. Wait for the **Telebirr Device Agent** icon to appear.
 
 ## 5. Change the phone to English
 
@@ -98,33 +96,18 @@ Use this guide from the first **Welcome** screen on the phone.
 11. Turn on **Set time automatically**.
 12. Turn on **Set time zone automatically**.
 
-## 6. Allow the applications to keep running
+## 6. Allow the application to keep running
 
 1. Open **Settings**.
 2. Tap **Apps**.
-3. Tap **OpenClaw**.
+3. Tap **Telebirr Device Agent**.
 4. Tap **Battery**.
 5. Tap **Unrestricted** or **No restrictions**.
-6. Return to **Apps**.
-7. Tap **Telebirr Device Agent**.
-8. Tap **Battery**.
-9. Tap **Unrestricted** or **No restrictions**.
-10. Return to the home screen.
+6. Return to the home screen.
 
 <!-- pagebreak -->
 
-## 7. Connect OpenClaw
-
-1. Open **OpenClaw**.
-2. Tap **Connect**.
-3. Tap **Setup Code**.
-4. Scan the OpenClaw QR code or type the setup code supplied by the supervisor.
-5. Tap **Pair** or **Submit**.
-6. Wait for the supervisor to approve the phone.
-7. Wait until the screen says **Connected** or **Online**.
-8. Return to the home screen.
-
-## 8. Give permissions to Telebirr Device Agent
+## 7. Give permissions to Telebirr Device Agent
 
 1. Open **Telebirr Device Agent**.
 2. When Android asks for SMS permission, tap **Allow**.
@@ -140,7 +123,7 @@ Use this guide from the first **Welcome** screen on the phone.
 
 <!-- pagebreak -->
 
-## 9. Activate Telebirr Device Agent
+## 8. Activate Telebirr Device Agent
 
 1. Tap the **Device Gateway URL** field.
 2. Type the Device Gateway URL supplied by the supervisor.
@@ -148,10 +131,9 @@ Use this guide from the first **Welcome** screen on the phone.
 4. Type the Telebirr Agent activation code supplied by the supervisor.
 5. Tap **Activate**.
 6. Wait until the screen shows **Activated**.
-7. Tap **Confirm OpenClaw is paired**.
-8. Wait for the next screen.
+7. Wait for the next screen.
 
-## 10. Enter the Telebirr PIN for SIM 1
+## 9. Enter the Telebirr PIN for SIM 1
 
 1. Tap **SIM ICCID**.
 2. Type the SIM 1 ICCID supplied by the supervisor.
@@ -164,7 +146,7 @@ Use this guide from the first **Welcome** screen on the phone.
 
 <!-- pagebreak -->
 
-## 11. Enter the Telebirr PIN for SIM 2
+## 10. Enter the Telebirr PIN for SIM 2
 
 1. Tap **SIM ICCID**.
 2. Delete the SIM 1 ICCID.
@@ -176,7 +158,7 @@ Use this guide from the first **Welcome** screen on the phone.
 8. Tap **Store local SIM PIN**.
 9. Wait for the saved message.
 
-## 12. Finish the setup
+## 11. Finish the setup
 
 1. Connect the charger.
 2. Keep Wi-Fi turned on.

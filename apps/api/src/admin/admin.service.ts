@@ -12,7 +12,7 @@ import { loadPlatformPolicy } from '../configuration/platform-policy';
 import { CURRENT_DEVICE_PROFILE_VERSION_TEXT } from '../devices/device-profile-version';
 import { comparePersonNames } from '../parsers/name-normalizer';
 
-const deviceQualificationKeys = ['device_permissions', 'accessibility_enabled', 'openclaw_paired', 'reboot_survival'] as const;
+const deviceQualificationKeys = ['device_permissions', 'accessibility_enabled', 'reboot_survival'] as const;
 const simQualificationKeys = ['sms_attribution', 'ussd_subscription', 'balance_query', 'transfer_confirmation'] as const;
 
 export function calculateFleetCapacity(
@@ -386,7 +386,7 @@ export class AdminService {
       const check = await transaction.deviceQualificationCheck.findFirst({ where: { id: checkId, runId } });
       if (!check) throw new ApiException('not_found', 'Qualification check was not found', HttpStatus.NOT_FOUND);
       await transaction.deviceQualificationCheck.update({ where: { id: check.id }, data: { status: input.status, evidence: { reference: input.evidenceReference, notes: input.notes ?? null }, observedAt: new Date(), recordedBy: actorId } });
-      const checks = await transaction.deviceQualificationCheck.findMany({ where: { runId } });
+      const checks = await transaction.deviceQualificationCheck.findMany({ where: { runId, key: { not: 'openclaw_paired' } } });
       const complete = checks.every((item) => item.id === check.id || item.status !== 'pending');
       const allPassed = checks.every((item) => item.id === check.id ? input.status === 'passed' : item.status === 'passed');
       const status = complete ? (allPassed ? 'passed' : 'failed') : 'running';
@@ -402,11 +402,11 @@ export class AdminService {
       await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`qualification-run:${runId}`}))`;
       const run = await transaction.deviceQualificationRun.findUnique({ where: { id: runId }, include: { device: true, checks: true } });
       if (!run) throw new ApiException('not_found', 'Qualification run was not found', HttpStatus.NOT_FOUND);
-      if (run.status !== 'passed' || run.checks.some((check) => check.status !== 'passed')) throw new ApiException('invalid_state', 'Every mandatory qualification check must pass before approval', HttpStatus.CONFLICT);
+      if (run.status !== 'passed' || run.checks.some((check) => check.key !== 'openclaw_paired' && check.status !== 'passed')) throw new ApiException('invalid_state', 'Every mandatory qualification check must pass before approval', HttpStatus.CONFLICT);
       const latest = await transaction.deviceQualificationRun.findFirst({ where: { deviceId: run.deviceId }, orderBy: { createdAt: 'desc' } });
       if (latest?.id !== run.id) throw new ApiException('invalid_state', 'Only the latest qualification run can be approved', HttpStatus.CONFLICT);
-      if (!run.device.lastHeartbeatAt || run.device.lastHeartbeatAt < new Date(Date.now() - 90_000) || !run.device.lastPermissionsOk || !run.device.lastAccessibilityOk || !run.device.openclawPaired) {
-        throw new ApiException('invalid_state', 'Device must be online with permissions, Accessibility, and OpenClaw healthy at approval time', HttpStatus.CONFLICT);
+      if (!run.device.lastHeartbeatAt || run.device.lastHeartbeatAt < new Date(Date.now() - 90_000) || !run.device.lastPermissionsOk || !run.device.lastAccessibilityOk) {
+        throw new ApiException('invalid_state', 'Device must be online with permissions and Accessibility healthy at approval time', HttpStatus.CONFLICT);
       }
       const unsafeSims = await transaction.simWallet.count({ where: { deviceId: run.deviceId, status: { in: ['quarantined', 'disabled'] } } });
       if (unsafeSims > 0) throw new ApiException('invalid_state', 'A quarantined or disabled SIM cannot be approved', HttpStatus.CONFLICT);
@@ -463,12 +463,11 @@ export class AdminService {
         last_heartbeat_at: run.device.lastHeartbeatAt?.toISOString() ?? null,
         permissions_ok: run.device.lastPermissionsOk,
         accessibility_ok: run.device.lastAccessibilityOk,
-        openclaw_paired: run.device.openclawPaired,
         agent_version: run.device.agentVersion,
         ussd_profile_version: run.device.ussdProfileVersion,
         sims: run.device.sims.map((sim) => ({ id: sim.id, slot: sim.slot, iccid_masked: `${sim.iccid.slice(0, 6)}••••${sim.iccid.slice(-4)}`, phone_number: sim.phoneNumber, account_name: sim.telebirrAccountName, status: sim.status })),
       },
-      checks: run.checks.map((check) => ({ id: check.id, key: check.key, status: check.status, sim_wallet_id: check.simWalletId, sim_slot: check.simWallet?.slot ?? null, evidence: check.evidence, observed_at: check.observedAt?.toISOString() ?? null, recorded_by: check.recordedBy })),
+      checks: run.checks.filter((check) => check.key !== 'openclaw_paired').map((check) => ({ id: check.id, key: check.key, status: check.status, sim_wallet_id: check.simWalletId, sim_slot: check.simWallet?.slot ?? null, evidence: check.evidence, observed_at: check.observedAt?.toISOString() ?? null, recorded_by: check.recordedBy })),
     };
   }
 

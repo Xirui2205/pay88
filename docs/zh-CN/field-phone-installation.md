@@ -6,13 +6,12 @@
 
 1. 获取 Wi-Fi 名称和密码。
 2. 获取 AirDroid 二维码。
-3. 获取 OpenClaw 设置代码或二维码。
-4. 获取设备网关 URL。
-5. 获取 Telebirr Agent 激活码。
-6. 获取 SIM 1 的 ICCID。
-7. 获取 SIM 2 的 ICCID。
-8. 准备好 SIM 1 的 Telebirr PIN。
-9. 准备好 SIM 2 的 Telebirr PIN。
+3. 获取设备网关 URL。
+4. 获取 Telebirr Agent 激活码。
+5. 获取 SIM 1 的 ICCID。
+6. 获取 SIM 2 的 ICCID。
+7. 准备好 SIM 1 的 Telebirr PIN。
+8. 准备好 SIM 2 的 Telebirr PIN。
 
 <!-- pagebreak -->
 
@@ -76,12 +75,11 @@
 
 <!-- pagebreak -->
 
-## 4. 等待两个应用自动安装
+## 4. 等待应用自动安装
 
 1. 保持手机连接 Wi-Fi。
 2. 保持手机连接充电器。
-3. 等待 **OpenClaw** 图标出现。
-4. 等待 **Telebirr Device Agent** 图标出现。
+3. 等待 **Telebirr Device Agent** 图标出现。
 
 ## 5. 将手机语言改为英语
 
@@ -102,29 +100,14 @@
 
 1. 打开 **设置**。
 2. 点击 **应用**。
-3. 点击 **OpenClaw**。
+3. 点击 **Telebirr Device Agent**。
 4. 点击 **电池**。
 5. 点击 **不受限制** 或 **无限制**。
-6. 返回 **应用**。
-7. 点击 **Telebirr Device Agent**。
-8. 点击 **电池**。
-9. 点击 **不受限制** 或 **无限制**。
-10. 返回主屏幕。
+6. 返回主屏幕。
 
 <!-- pagebreak -->
 
-## 7. 连接 OpenClaw
-
-1. 打开 **OpenClaw**。
-2. 点击 **Connect**。
-3. 点击 **Setup Code**。
-4. 扫描 OpenClaw 二维码，或输入主管提供的设置代码。
-5. 点击 **Pair** 或 **Submit**。
-6. 等待主管批准这台手机。
-7. 等待屏幕显示 **Connected** 或 **Online**。
-8. 返回主屏幕。
-
-## 8. 为 Telebirr Device Agent 授权
+## 7. 为 Telebirr Device Agent 授权
 
 1. 打开 **Telebirr Device Agent**。
 2. Android 请求短信权限时，点击 **允许**。
@@ -140,7 +123,7 @@
 
 <!-- pagebreak -->
 
-## 9. 激活 Telebirr Device Agent
+## 8. 激活 Telebirr Device Agent
 
 1. 点击 **Device Gateway URL** 输入框。
 2. 输入主管提供的设备网关 URL。
@@ -148,10 +131,9 @@
 4. 输入主管提供的 Telebirr Agent 激活码。
 5. 点击 **Activate**。
 6. 等待屏幕显示 **Activated**。
-7. 点击 **Confirm OpenClaw is paired**。
-8. 等待进入下一个页面。
+7. 等待进入下一个页面。
 
-## 10. 输入 SIM 1 的 Telebirr PIN
+## 9. 输入 SIM 1 的 Telebirr PIN
 
 1. 点击 **SIM ICCID**。
 2. 输入主管提供的 SIM 1 ICCID。
@@ -164,7 +146,7 @@
 
 <!-- pagebreak -->
 
-## 11. 输入 SIM 2 的 Telebirr PIN
+## 10. 输入 SIM 2 的 Telebirr PIN
 
 1. 点击 **SIM ICCID**。
 2. 删除 SIM 1 的 ICCID。
@@ -176,7 +158,7 @@
 8. 点击 **Store local SIM PIN**。
 9. 等待保存成功信息。
 
-## 12. 完成安装
+## 11. 完成安装
 
 1. 连接充电器。
 2. 保持 Wi-Fi 开启。
