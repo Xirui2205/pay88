@@ -39,4 +39,7 @@ export interface OperationRecord {
   p2pStatus: string
   age: string
   device?: string
+  log?: Array<{ at: string; event: string; detail: string }>
+  canExecuteNow?: boolean
+  canRetry?: boolean
 }

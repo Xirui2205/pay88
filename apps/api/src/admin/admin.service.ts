@@ -174,8 +174,64 @@ export class AdminService {
       const records = await this.prisma.transfer.findMany({ include: { merchant: { select: { name: true } }, simWallet: { include: { device: { select: { name: true } } } } }, orderBy: { createdAt: 'desc' }, take: 500 });
       return records.map((record) => ({ id: record.id, merchant: record.merchant.name, reference: record.reference, customer: `${record.destinationPhone.slice(0, 5)}••••${record.destinationPhone.slice(-3)}`, amount: minorToAmount(record.amountMinor), status: ['success', 'failed', 'cancelled'].includes(record.status) ? record.status : 'pending', p2p_status: record.status, created_at: record.createdAt.toISOString(), device: record.simWallet?.device.name ?? null }));
     }
-    const records = await this.prisma.deviceJob.findMany({ include: { device: { select: { name: true } }, simWallet: { select: { slot: true } }, transferAttempt: { include: { transfer: { include: { merchant: { select: { name: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 500 });
-    return records.map((record) => ({ id: record.id, merchant: record.transferAttempt?.transfer.merchant.name ?? 'System', reference: record.transferAttempt?.transfer.reference ?? record.id, customer: record.type.replaceAll('_', ' '), amount: record.transferAttempt ? minorToAmount(record.transferAttempt.transfer.amountMinor) : '0.00', status: record.state === 'succeeded' ? 'success' : record.state === 'failed' ? 'failed' : record.state, p2p_status: record.state, created_at: record.createdAt.toISOString(), device: record.device ? `${record.device.name} · S${record.simWallet.slot + 1}` : null }));
+    const records = await this.prisma.deviceJob.findMany({ include: { device: { select: { name: true } }, simWallet: { select: { slot: true } }, ussdEvidence: { orderBy: { capturedAt: 'asc' } }, transferAttempt: { include: { transfer: { include: { merchant: { select: { name: true } } } } } } }, orderBy: { createdAt: 'desc' }, take: 500 });
+    const auditRows = await this.prisma.auditLog.findMany({ where: { targetType: 'device_job', targetId: { in: records.map((record) => record.id) } }, orderBy: { createdAt: 'asc' } });
+    const auditsByJob = new Map<string, typeof auditRows>();
+    for (const row of auditRows) {
+      const key = row.targetId ?? '';
+      auditsByJob.set(key, [...(auditsByJob.get(key) ?? []), row]);
+    }
+    return records.map((record) => {
+      const log = [
+        { at: record.createdAt.toISOString(), event: 'queued', detail: `Job created (attempt ${record.attempt})` },
+        ...(record.startedAt ? [{ at: record.startedAt.toISOString(), event: 'device_started', detail: 'Phone started the USSD job' }] : []),
+        ...record.ussdEvidence.map((evidence) => ({ at: evidence.capturedAt.toISOString(), event: `ussd:${evidence.stepId}`, detail: `USSD response captured (${evidence.screenHash.slice(0, 12)})` })),
+        ...(record.committedAt ? [{ at: record.committedAt.toISOString(), event: 'committed', detail: 'PIN submitted / money operation committed' }] : []),
+        ...(record.errorCode ? [{ at: (record.completedAt ?? record.updatedAt).toISOString(), event: 'error', detail: record.errorCode }] : []),
+        ...(record.lastScreenText ? [{ at: record.updatedAt.toISOString(), event: 'last_response', detail: record.lastScreenText }] : []),
+        ...(auditsByJob.get(record.id) ?? []).map((row) => ({ at: row.createdAt.toISOString(), event: row.action, detail: row.reason ?? 'Admin action' })),
+        ...(['succeeded', 'failed', 'unknown', 'cancelled'].includes(record.state) ? [{ at: (record.completedAt ?? record.updatedAt).toISOString(), event: record.state, detail: `Job finished as ${record.state}` }] : []),
+      ].sort((a, b) => a.at.localeCompare(b.at));
+      return { id: record.id, merchant: record.transferAttempt?.transfer.merchant.name ?? 'System', reference: record.transferAttempt?.transfer.reference ?? record.id, customer: record.type.replaceAll('_', ' '), amount: record.transferAttempt ? minorToAmount(record.transferAttempt.transfer.amountMinor) : '0.00', status: record.state === 'succeeded' ? 'success' : record.state === 'failed' ? 'failed' : record.state, p2p_status: record.state, created_at: record.createdAt.toISOString(), device: record.device ? `${record.device.name} · S${record.simWallet.slot + 1}` : null, log, can_execute_now: record.state === 'queued', can_retry: record.state === 'failed' && !record.committedAt };
+    });
+  }
+
+  async executeDeviceJobNow(jobId: string, actorId: string) {
+    return this.prisma.$transaction(async (transaction) => {
+      const job = await transaction.deviceJob.findUnique({ where: { id: jobId } });
+      if (!job) throw new ApiException('not_found', 'Device job was not found', HttpStatus.NOT_FOUND);
+      if (job.state !== 'queued') throw new ApiException('invalid_state', 'Only queued jobs can be executed now', HttpStatus.CONFLICT);
+      const updated = await transaction.deviceJob.update({ where: { id: jobId }, data: { priority: 1_000_000 } });
+      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId, action: 'device_job.execute_now', targetType: 'device_job', targetId: jobId, reason: 'Admin requested immediate execution' } });
+      return { id: updated.id, state: updated.state, priority: updated.priority };
+    });
+  }
+
+  async retryDeviceJob(jobId: string, actorId: string) {
+    return this.prisma.$transaction(async (transaction) => {
+      const job = await transaction.deviceJob.findUnique({ where: { id: jobId }, include: { transferAttempt: { include: { transfer: true } } } });
+      if (!job) throw new ApiException('not_found', 'Device job was not found', HttpStatus.NOT_FOUND);
+      if (job.state !== 'failed') throw new ApiException('invalid_state', 'Only failed jobs can be retried', HttpStatus.CONFLICT);
+      if (job.committedAt) throw new ApiException('post_commit_retry_forbidden', 'This job passed the PIN/commit point and cannot be retried automatically', HttpStatus.CONFLICT);
+      const transfer = job.transferAttempt?.transfer;
+      if (transfer) {
+        const auth = { merchantId: transfer.merchantId, environment: transfer.environment } as const;
+        if (transfer.financialMode === 'merchant_debit') {
+          await this.ledger.reserveWithdrawal(transaction, auth, transfer.id, transfer.amountMinor + transfer.reserveProviderFeeMinor + transfer.gatewayFeeMinor);
+        } else {
+          await this.ledger.reserveInternalMoveFee(transaction, auth, transfer.id, transfer.reserveProviderFeeMinor);
+        }
+        await transaction.simWallet.update({ where: { id: job.simWalletId }, data: { reservedBalanceMinor: { increment: transfer.amountMinor + transfer.reserveProviderFeeMinor } } });
+        await transaction.transfer.update({ where: { id: transfer.id }, data: { status: 'queued', completedAt: null, estimatedCompletionAt: new Date(Date.now() + 60_000) } });
+        await transaction.settlementRequest.updateMany({ where: { transferId: transfer.id }, data: { status: 'dispatched' } });
+        await transaction.sweepExecution.updateMany({ where: { transferId: transfer.id }, data: { status: 'queued', completedAt: null } });
+      }
+      const sim = await transaction.simWallet.update({ where: { id: job.simWalletId }, data: { nextFencingToken: { increment: 1n } } });
+      const updated = await transaction.deviceJob.update({ where: { id: jobId }, data: { state: 'queued', priority: 1_000_000, attempt: { increment: 1 }, fencingToken: sim.nextFencingToken, deviceId: null, leaseOwner: null, leaseExpiresAt: null, startedAt: null, completedAt: null, errorCode: null, lastScreenText: null, signature: null, expiresAt: new Date(Date.now() + 10 * 60_000) } });
+      await transaction.transferAttempt.updateMany({ where: { deviceJobId: jobId }, data: { fencingToken: sim.nextFencingToken, startedAt: null, completedAt: null, outcome: null, errorCode: null } });
+      await transaction.auditLog.create({ data: { actorType: 'platform_staff', actorId, action: 'device_job.retried', targetType: 'device_job', targetId: jobId, reason: `Admin retried failed pre-commit job as attempt ${updated.attempt}` } });
+      return { id: updated.id, state: updated.state, attempt: updated.attempt };
+    });
   }
 
   async merchants() {

@@ -119,6 +119,18 @@ export class AdminController {
     return success(request, await this.admin.operations(z.enum(['jobs', 'deposits', 'withdrawals']).parse(kind)));
   }
 
+  @Post('device-jobs/:jobId/execute-now')
+  @HttpCode(200)
+  async executeDeviceJobNow(@Req() request: PlatformRequest, @Param('jobId') jobId: string) {
+    return success(request, await this.admin.executeDeviceJobNow(z.string().uuid().parse(jobId), request.platformAuth.staffId), 'Device job prioritized for immediate execution');
+  }
+
+  @Post('device-jobs/:jobId/retry')
+  @HttpCode(200)
+  async retryDeviceJob(@Req() request: PlatformRequest, @Param('jobId') jobId: string) {
+    return success(request, await this.admin.retryDeviceJob(z.string().uuid().parse(jobId), request.platformAuth.staffId), 'Device job queued for retry');
+  }
+
   @Get('merchants')
   async merchants(@Req() request: RequestWithContext) { return success(request, await this.admin.merchants()); }
 
