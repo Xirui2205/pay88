@@ -20,6 +20,7 @@ object MtlsOkHttpClientFactory {
     fun create(context: Context, certificateAlias: String): OkHttpClient {
         if (certificateAlias.isBlank()) {
             return OkHttpClient.Builder()
+                .dns(PilotDns.systemThenAliDns)
                 .connectTimeout(15, TimeUnit.SECONDS)
                 .readTimeout(0, TimeUnit.MILLISECONDS)
                 .pingInterval(25, TimeUnit.SECONDS)
@@ -41,6 +42,7 @@ object MtlsOkHttpClientFactory {
         sslContext.init(arrayOf<KeyManager>(keyManager), arrayOf(trustManager), SecureRandom())
         return OkHttpClient.Builder()
             .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .dns(PilotDns.systemThenAliDns)
             .connectTimeout(15, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.MILLISECONDS)
             .pingInterval(25, TimeUnit.SECONDS)

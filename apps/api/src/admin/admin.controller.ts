@@ -208,6 +208,12 @@ export class AdminController {
     return success(request, await this.admin.createDevice({ groupId: body.group_id, name: body.name, model: body.model, actorId: request.platformAuth.staffId, sims: body.sims.map((sim) => ({ slot: sim.slot, iccid: sim.iccid, phoneNumber: sim.phone_number, accountName: sim.account_name })) }), 'Device created; activation code is shown once');
   }
 
+  @Delete('fleet/devices/:deviceId')
+  @UseGuards(PasswordReauthGuard)
+  async deleteDevice(@Req() request: PlatformRequest, @Param('deviceId') deviceId: string, @Body(new ZodPipe(deviceRetireSchema)) body: z.infer<typeof deviceRetireSchema>) {
+    return success(request, await this.admin.deleteDevice(z.string().uuid().parse(deviceId), body.reason, request.platformAuth.staffId), 'Unqualified phone deleted; its SIM identities can be enrolled again');
+  }
+
   @Post('fleet/devices/:deviceId/activation-code')
   async regenerateActivationCode(@Req() request: PlatformRequest, @Param('deviceId') deviceId: string) {
     return success(request, await this.admin.regenerateActivationCode(z.string().uuid().parse(deviceId), request.platformAuth.staffId), 'New server-generated activation code created');

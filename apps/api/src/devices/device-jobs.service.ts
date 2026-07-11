@@ -143,6 +143,17 @@ export class DeviceJobsService {
         where: { codeHash, consumedAt: null, expiresAt: { gt: new Date() } },
       });
       if (!activation) throw new ApiException('forbidden', 'Activation code is invalid or expired', HttpStatus.FORBIDDEN);
+      const existingHardware = await transaction.device.findFirst({
+        where: { hardwareSerial: input.hardware_serial, id: { not: activation.deviceId } },
+        select: { id: true },
+      });
+      if (existingHardware) {
+        throw new ApiException(
+          'hardware_already_enrolled',
+          'This handset is already attached to another phone record; delete the failed enrollment or recover the existing phone before retrying',
+          HttpStatus.CONFLICT,
+        );
+      }
       const claim = await transaction.deviceActivationCode.updateMany({
         where: { id: activation.id, consumedAt: null, expiresAt: { gt: new Date() } },
         data: { consumedAt: new Date() },

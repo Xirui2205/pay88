@@ -341,6 +341,60 @@ export class AdminService {
     return { device_id: deviceId, activation_code: activationCode, activation_expires_at: expiresAt.toISOString() };
   }
 
+  async deleteDevice(deviceId: string, reason: string, actorId: string) {
+    return this.prisma.$transaction(async (transaction) => {
+      await transaction.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`device-delete:${deviceId}`}))`;
+      const device = await transaction.device.findUnique({
+        where: { id: deviceId },
+        include: { sims: { select: { id: true } } },
+      });
+      if (!device) throw new ApiException('not_found', 'Device was not found', HttpStatus.NOT_FOUND);
+      if (!['pending', 'qualifying'].includes(device.status)) {
+        throw new ApiException('invalid_state', 'Only a pending or unqualified pilot phone can be deleted; retire operational phones instead', HttpStatus.CONFLICT);
+      }
+      if (device.activeUssdJobId) {
+        throw new ApiException('invalid_state', 'A phone with active operational work cannot be deleted', HttpStatus.CONFLICT);
+      }
+
+      const simIds = device.sims.map((sim) => sim.id);
+      const activityCounts = await Promise.all([
+        transaction.deviceJob.count({ where: { OR: [{ deviceId }, { simWalletId: { in: simIds } }] } }),
+        transaction.ussdEvidence.count({ where: { deviceId } }),
+        transaction.unattributedSmsEvidence.count({ where: { deviceId } }),
+        transaction.balanceSnapshot.count({ where: { simWalletId: { in: simIds } } }),
+        transaction.depositIntent.count({ where: { simWalletId: { in: simIds } } }),
+        transaction.smsReceipt.count({ where: { simWalletId: { in: simIds } } }),
+        transaction.transfer.count({ where: { simWalletId: { in: simIds } } }),
+        transaction.sweepExecution.count({ where: { simWalletId: { in: simIds } } }),
+        transaction.deviceQualificationCheck.count({ where: { run: { deviceId }, observedAt: { not: null } } }),
+      ]);
+      const operationalRecords = activityCounts.reduce((sum, count) => sum + count, 0);
+      if (operationalRecords > 0) {
+        throw new ApiException(
+          'device_has_operational_history',
+          'This phone has operational or qualification history and must be retired instead of deleted',
+          HttpStatus.CONFLICT,
+          { operational_records: operationalRecords },
+        );
+      }
+
+      await transaction.deviceActivationCode.deleteMany({ where: { deviceId } });
+      await transaction.device.delete({ where: { id: deviceId } });
+      await transaction.auditLog.create({
+        data: {
+          actorType: 'platform_staff',
+          actorId,
+          action: 'device.deleted_before_qualification',
+          targetType: 'device',
+          targetId: deviceId,
+          reason,
+          metadata: { device_name: device.name, group_id: device.groupId, released_sim_count: device.sims.length },
+        },
+      });
+      return { device_id: deviceId, deleted: true, released_sim_count: device.sims.length };
+    }, { isolationLevel: 'Serializable' });
+  }
+
   async qualification(deviceId: string) {
     const run = await this.prisma.deviceQualificationRun.findFirst({
       where: { deviceId },
