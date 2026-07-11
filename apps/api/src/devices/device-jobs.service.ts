@@ -7,7 +7,7 @@ import { sha256, stableJson } from '../common/crypto';
 import { ApiException } from '../common/api-exception';
 import { PrismaService } from '../infra/prisma.service';
 import { LedgerService } from '../ledger/ledger.service';
-import { deviceJobPayloadSchema, type ActivationRequest, type DeviceHeartbeat, type DeviceJobReport, type JobStatusEvent } from '@telebirr/contracts';
+import { deviceJobPayloadSchema, normalizeEthiopianPhone, type ActivationRequest, type DeviceHeartbeat, type DeviceJobReport, type JobStatusEvent } from '@telebirr/contracts';
 import { comparePersonNames } from '../parsers/name-normalizer';
 import { DeviceSigningService } from './device-signing.service';
 import { AlertsService } from '../alerts/alerts.service';
@@ -216,7 +216,7 @@ export class DeviceJobsService {
           !sim ||
           sim.deviceId !== deviceId ||
           sim.slot !== identity.slot ||
-          sim.phoneNumber !== identity.phone_number ||
+          normalizeEthiopianPhone(sim.phoneNumber) !== normalizeEthiopianPhone(identity.phone_number) ||
           comparePersonNames(sim.telebirrAccountName, identity.telebirr_account_name).decision !== 'match'
         ) {
           quarantine = true;

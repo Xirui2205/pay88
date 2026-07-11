@@ -1,5 +1,5 @@
 import { HttpStatus, Injectable } from '@nestjs/common';
-import type { Prisma } from '@prisma/client';
+import { Prisma } from '@prisma/client';
 import argon2 from 'argon2';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { amountToMinor, minorToAmount } from '@telebirr/contracts';
@@ -462,6 +462,24 @@ export class AdminService {
       if (['quarantined', 'retired'].includes(device.status)) {
         throw new ApiException('invalid_state', 'Recover this device before changing its online status', HttpStatus.CONFLICT);
       }
+      if (online) {
+        const heartbeatAge = device.lastHeartbeatAt ? Date.now() - device.lastHeartbeatAt.valueOf() : Number.POSITIVE_INFINITY;
+        if (!device.authTokenHash) {
+          throw new ApiException('device_not_activated', 'Activate the phone before switching it online', HttpStatus.CONFLICT);
+        }
+        if (!device.lastHelloAt || !device.lastHeartbeatAt || heartbeatAge > 90_000) {
+          throw new ApiException('device_not_connected', 'The Agent must have an authenticated heartbeat within the last 90 seconds', HttpStatus.CONFLICT, {
+            last_hello_at: device.lastHelloAt?.toISOString() ?? null,
+            last_heartbeat_at: device.lastHeartbeatAt?.toISOString() ?? null,
+          });
+        }
+        if (!device.lastPermissionsOk || !device.lastAccessibilityOk) {
+          throw new ApiException('device_not_ready', 'Grant every required permission and enable the Telebirr Accessibility service first', HttpStatus.CONFLICT, {
+            permissions_ok: device.lastPermissionsOk,
+            accessibility_ok: device.lastAccessibilityOk,
+          });
+        }
+      }
       await transaction.device.update({ where: { id: deviceId }, data: { status: online ? 'online' : 'offline' } });
       if (online) {
         await transaction.simWallet.updateMany({ where: { deviceId, status: { notIn: ['quarantined', 'disabled'] } }, data: { status: 'active' } });
@@ -702,6 +720,14 @@ export class AdminService {
           name: device.name,
           model: device.model,
           status: device.status,
+          credentials_configured: Boolean(device.authTokenHash),
+          socket_connected: Boolean(
+            device.lastSocketConnectedAt &&
+            (!device.lastSocketDisconnectedAt || device.lastSocketConnectedAt > device.lastSocketDisconnectedAt) &&
+            device.lastHeartbeatAt && device.lastHeartbeatAt > new Date(Date.now() - 90_000),
+          ),
+          last_authenticated_hello_at: device.lastHelloAt?.toISOString() ?? null,
+          last_socket_disconnect_reason: device.lastSocketDisconnectReason,
           last_heartbeat_at: device.lastHeartbeatAt?.toISOString() ?? null,
           battery_percent: device.batteryPercent,
           temperature_celsius: device.temperatureCelsius?.toString() ?? null,
@@ -744,12 +770,38 @@ export class AdminService {
       orderBy: { createdAt: 'desc' },
       take: 100,
     });
+    const activation = await this.prisma.deviceActivationCode.findFirst({
+      where: { deviceId },
+      orderBy: { createdAt: 'desc' },
+      select: { expiresAt: true, consumedAt: true, createdAt: true },
+    });
+    const socketCurrentlyConnected = Boolean(
+      device.lastSocketConnectedAt &&
+      (!device.lastSocketDisconnectedAt || device.lastSocketConnectedAt > device.lastSocketDisconnectedAt) &&
+      device.lastHeartbeatAt && device.lastHeartbeatAt > new Date(Date.now() - 90_000),
+    );
     return {
       device_id: device.id,
       generated_at: new Date().toISOString(),
       readiness: deviceExecutionReadiness(device),
       state: {
         status: device.status,
+        credentials_configured: Boolean(device.authTokenHash),
+        certificate_bound: Boolean(device.certificateFingerprint),
+        activation_code: activation ? {
+          created_at: activation.createdAt.toISOString(),
+          expires_at: activation.expiresAt.toISOString(),
+          consumed_at: activation.consumedAt?.toISOString() ?? null,
+          usable: !activation.consumedAt && activation.expiresAt > new Date(),
+        } : null,
+        connection: {
+          socket_currently_connected: socketCurrentlyConnected,
+          last_socket_connected_at: device.lastSocketConnectedAt?.toISOString() ?? null,
+          last_socket_disconnected_at: device.lastSocketDisconnectedAt?.toISOString() ?? null,
+          last_socket_disconnect_code: device.lastSocketDisconnectCode,
+          last_socket_disconnect_reason: device.lastSocketDisconnectReason,
+          last_authenticated_hello_at: device.lastHelloAt?.toISOString() ?? null,
+        },
         last_heartbeat_at: device.lastHeartbeatAt?.toISOString() ?? null,
         permissions_ok: device.lastPermissionsOk,
         accessibility_ok: device.lastAccessibilityOk,
@@ -906,7 +958,15 @@ export class AdminService {
           authTokenHash: null,
           certificateFingerprint: null,
           activeUssdJobId: null,
+          lastSocketConnectedAt: null,
+          lastSocketDisconnectedAt: null,
+          lastSocketDisconnectCode: null,
+          lastSocketDisconnectReason: null,
+          lastHelloAt: null,
           lastHeartbeatAt: null,
+          lastHeartbeatPayload: Prisma.DbNull,
+          lastProfileInstallResult: Prisma.DbNull,
+          ussdProfileVersion: null,
           lastPermissionsOk: false,
           lastAccessibilityOk: false,
           openclawPaired: false,

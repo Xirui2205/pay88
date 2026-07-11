@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { profileInstallResultSchema } from './device-websocket.gateway';
+import { profileInstallResultSchema, sameEthiopianMobileNumber } from './device-websocket.gateway';
 
 describe('profile installation response diagnostics', () => {
   it('accepts a complete rejected-profile response for Admin inspection', () => {
@@ -14,5 +14,13 @@ describe('profile installation response diagnostics', () => {
       installed_profiles: [],
       server_envelope: { key_id: 'telebirr-device-v1', payload_base64: 'AA==', signature_base64: 'AA==' },
     })).toMatchObject({ result: 'rejected', code: 'signature_invalid' });
+  });
+});
+
+describe('heartbeat Telebirr identity normalization', () => {
+  it('treats local and international Ethiopian formats as the same enrolled number', () => {
+    expect(sameEthiopianMobileNumber('+251953677690', '0953677690')).toBe(true);
+    expect(sameEthiopianMobileNumber('+251953677690', '953677690')).toBe(true);
+    expect(sameEthiopianMobileNumber('+251953677690', '0953677691')).toBe(false);
   });
 });

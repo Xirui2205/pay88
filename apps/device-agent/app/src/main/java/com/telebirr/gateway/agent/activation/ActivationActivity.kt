@@ -14,6 +14,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.telebirr.gateway.agent.AgentApplication
 import com.telebirr.gateway.agent.BuildConfig
 import com.telebirr.gateway.agent.R
@@ -24,6 +26,7 @@ import com.telebirr.gateway.agent.service.HeartbeatService
 import com.telebirr.gateway.agent.transport.MtlsOkHttpClientFactory
 import com.telebirr.gateway.agent.ussd.AndroidUssdDialer
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -46,9 +49,29 @@ class ActivationActivity : AppCompatActivity() {
         val status = findViewById<TextView>(R.id.activationStatus)
         val gatewayField = findViewById<EditText>(R.id.gatewayUrl)
         val backendStatus = findViewById<TextView>(R.id.backendStatus)
+        val deviceConnectionStatus = findViewById<TextView>(R.id.deviceConnectionStatus)
         application.container.config.current()?.let { gatewayField.setText(it.gatewayBaseUrl) }
         status.text = application.container.config.current()?.let { "Activated: ${it.deviceId}" }
             ?: getString(R.string.not_activated)
+
+        lifecycleScope.launch {
+            repeatOnLifecycle(Lifecycle.State.STARTED) {
+                while (true) {
+                    deviceConnectionStatus.text = application.container.connectionDiagnostics
+                        .snapshot().displayText()
+                    delay(1_000)
+                }
+            }
+        }
+
+        findViewById<Button>(R.id.reconnectButton).setOnClickListener {
+            if (application.container.config.current() == null) {
+                status.text = getString(R.string.not_activated)
+            } else {
+                HeartbeatService.reconnect(this@ActivationActivity)
+                status.text = "Reconnect requested"
+            }
+        }
 
         findViewById<Button>(R.id.testBackendButton).setOnClickListener {
             val gateway = gatewayField.text.toString().trim().trimEnd('/')

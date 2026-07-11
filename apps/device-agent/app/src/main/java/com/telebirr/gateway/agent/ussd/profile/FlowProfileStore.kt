@@ -54,7 +54,13 @@ class FlowProfileStore(
         }
         if (target.exists()) {
             val existing = json.decodeFromString<SignedFlowProfileEnvelope>(target.readText(Charsets.UTF_8))
-            require(existing == envelope) { "Profile version already has different signed content" }
+            // ECDSA signatures are intentionally non-deterministic. Re-signing the
+            // exact same profile payload must therefore be idempotent even when the
+            // signature bytes differ.
+            verifier.verify(existing)
+            require(existing.keyId == envelope.keyId && existing.payloadBase64 == envelope.payloadBase64) {
+                "Profile version already has different signed content"
+            }
             return verified.profile
         }
         val temporary = File(directory, target.name + ".tmp")

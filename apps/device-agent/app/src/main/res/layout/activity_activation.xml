@@ -70,6 +70,22 @@
             android:text="@string/not_activated" />
 
         <Button
+            android:id="@+id/reconnectButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/reconnect_now" />
+
+        <TextView
+            android:id="@+id/deviceConnectionStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:fontFamily="monospace"
+            android:text="@string/device_connection_not_started"
+            android:textIsSelectable="true" />
+
+        <Button
             android:id="@+id/testUssdSim1Button"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"

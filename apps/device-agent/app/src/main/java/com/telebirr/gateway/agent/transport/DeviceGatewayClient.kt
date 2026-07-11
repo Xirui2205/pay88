@@ -48,6 +48,7 @@ class DeviceGatewayClient(
 
     fun connect() {
         if (socket != null) return
+        container.connectionDiagnostics.connecting()
         socket = http.newWebSocket(
             Request.Builder()
                 .url(config.websocketUrl)
@@ -63,6 +64,7 @@ class DeviceGatewayClient(
 
     override fun onOpen(webSocket: WebSocket, response: Response) {
         connected.set(true)
+        container.connectionDiagnostics.socketOpened(response.code)
         send(
             buildJsonObject {
                 put("type", "hello")
@@ -81,19 +83,28 @@ class DeviceGatewayClient(
     override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
         connected.set(false)
         socket = null
+        container.connectionDiagnostics.closed(code, reason)
     }
 
     override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
         connected.set(false)
         socket = null
+        container.connectionDiagnostics.failed(
+            "${t.javaClass.simpleName}: ${t.message ?: "connection failed"}",
+            response?.code,
+        )
     }
 
-    fun sendHeartbeat(payload: JsonObject): Boolean = send(
-        buildJsonObject {
+    fun sendHeartbeat(payload: JsonObject): Boolean {
+        val sentAtMs = payload["sent_at_ms"]?.jsonPrimitive?.content?.toLongOrNull()
+            ?: System.currentTimeMillis()
+        val accepted = send(buildJsonObject {
             put("type", "heartbeat")
             put("payload", payload)
-        },
-    )
+        })
+        if (accepted) container.connectionDiagnostics.heartbeatSent(sentAtMs)
+        return accepted
+    }
 
     fun requestLeaseRenewal(jobId: String, fencingToken: Long): Boolean = send(
         buildJsonObject {
@@ -129,6 +140,12 @@ class DeviceGatewayClient(
     private suspend fun handleMessage(raw: String) {
         val message = runCatching { json.parseToJsonElement(raw).jsonObject }.getOrNull() ?: return
         when (message["type"]?.jsonPrimitive?.content) {
+            "hello_ack" -> container.connectionDiagnostics.helloAcknowledged()
+            "heartbeat_ack" -> {
+                val receivedAt = message["received_at_ms"]?.jsonPrimitive?.content?.toLongOrNull()
+                    ?: System.currentTimeMillis()
+                container.connectionDiagnostics.heartbeatAcknowledged(receivedAt)
+            }
             "profile_install" -> {
                 handleProfileInstall(message["envelope"])
             }

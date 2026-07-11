@@ -35,6 +35,12 @@ class HeartbeatService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
+        if (intent?.action == ACTION_RECONNECT) {
+            loop?.cancel()
+            gateway?.close()
+            gateway = null
+            loop = null
+        }
         if (loop?.isActive != true) {
             loop = lifecycleScope.launch { heartbeatLoop() }
         }
@@ -125,5 +131,14 @@ class HeartbeatService : LifecycleService() {
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, HeartbeatService::class.java))
         }
+
+        fun reconnect(context: Context) {
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, HeartbeatService::class.java).setAction(ACTION_RECONNECT),
+            )
+        }
+
+        private const val ACTION_RECONNECT = "com.telebirr.gateway.agent.RECONNECT"
     }
 }

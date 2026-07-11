@@ -5,7 +5,7 @@ import type { IncomingMessage, Server } from 'node:http';
 import type { Duplex } from 'node:stream';
 import { WebSocket, WebSocketServer } from 'ws';
 import { z } from 'zod';
-import { jobStatusEventSchema } from '@telebirr/contracts';
+import { jobStatusEventSchema, normalizeEthiopianPhone } from '@telebirr/contracts';
 import { constantTimeEqual, sha256 } from '../common/crypto';
 import { stringifyJsonSafe } from '../common/json-serialization';
 import { toJsonCompatible } from '../common/json-serialization';
@@ -91,6 +91,14 @@ const smsEvidenceSchema = z.object({
   sim_iccid_hash: z.string().regex(/^[a-f0-9]{64}$/),
   raw_message: z.string().min(1).max(8000),
 });
+
+export function sameEthiopianMobileNumber(left: string, right: string): boolean {
+  try {
+    return normalizeEthiopianPhone(left) === normalizeEthiopianPhone(right);
+  } catch {
+    return false;
+  }
+}
 export const profileInstallResultSchema = z.object({
   profile_id: z.string().min(3).max(64).nullable(),
   profile_version: z.number().int().positive().nullable(),
@@ -188,6 +196,15 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
     const previous = this.sockets.get(deviceId);
     if (previous && previous !== socket) previous.close(4001, 'replaced');
     this.sockets.set(deviceId, socket);
+    void this.prisma.device.update({
+      where: { id: deviceId },
+      data: {
+        lastSocketConnectedAt: new Date(),
+        lastSocketDisconnectedAt: null,
+        lastSocketDisconnectCode: null,
+        lastSocketDisconnectReason: null,
+      },
+    }).catch((error) => this.logger.warn(`Could not persist socket connection for ${deviceId}: ${(error as Error).message}`));
     let chain = Promise.resolve();
     const authorizationTimer = setInterval(() => {
       void this.connectionAuthorized(deviceId, identity).then((authorized) => {
@@ -209,9 +226,19 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
         this.logger.warn(`Device ${deviceId} message rejected: ${(error as Error).message}`);
       });
     });
-    socket.on('close', () => {
+    socket.on('close', (code, reason) => {
       clearInterval(authorizationTimer);
-      if (this.sockets.get(deviceId) === socket) this.sockets.delete(deviceId);
+      const wasCurrentConnection = this.sockets.get(deviceId) === socket;
+      if (wasCurrentConnection) this.sockets.delete(deviceId);
+      if (!wasCurrentConnection) return;
+      void this.prisma.device.update({
+        where: { id: deviceId },
+        data: {
+          lastSocketDisconnectedAt: new Date(),
+          lastSocketDisconnectCode: code,
+          lastSocketDisconnectReason: reason.toString().slice(0, 500) || null,
+        },
+      }).catch((error) => this.logger.warn(`Could not persist socket close for ${deviceId}: ${(error as Error).message}`));
     });
     socket.on('error', () => undefined);
   }
@@ -233,6 +260,9 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
     const message = JSON.parse(raw) as Record<string, unknown>;
     if (message.type === 'hello') {
       if (message.device_id !== deviceId || message.protocol_version !== '1') throw new Error('invalid_hello');
+      const acknowledgedAt = Date.now();
+      await this.prisma.device.update({ where: { id: deviceId }, data: { lastHelloAt: new Date(acknowledgedAt) } });
+      this.send(socket, { type: 'hello_ack', device_id: deviceId, authenticated_at_ms: acknowledgedAt });
       for (const envelope of this.profiles.allSignedProfiles()) this.send(socket, { type: 'profile_install', envelope });
       return;
     }
@@ -250,6 +280,13 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
       ].every((profile) => installed.has(profile));
       if (profilesReady) await this.sendLeaseOrJob(deviceId, socket);
       else for (const envelope of this.profiles.allSignedProfiles()) this.send(socket, { type: 'profile_install', envelope });
+      this.send(socket, {
+        type: 'heartbeat_ack',
+        device_id: deviceId,
+        sent_at_ms: heartbeat.sent_at_ms,
+        received_at_ms: Date.now(),
+        profiles_ready: profilesReady,
+      });
       return;
     }
     if (message.type === 'spool_batch') {
@@ -477,7 +514,7 @@ export class DeviceWebSocketGateway implements OnApplicationBootstrap, OnApplica
           !sim ||
           sim.iccid !== reported.iccid ||
           sim.slot !== reported.slot_index ||
-          sim.phoneNumber !== reported.telebirr_number ||
+          !sameEthiopianMobileNumber(sim.phoneNumber, reported.telebirr_number) ||
           comparePersonNames(sim.telebirrAccountName, reported.registered_name).decision !== 'match'
         ) {
           quarantine = true;

@@ -33,4 +33,6 @@
     <string name="pin_storage_failed">PIN storage failed</string>
     <string name="heartbeat_channel">Fleet connection</string>
     <string name="heartbeat_running">Secure fleet connection active</string>
+    <string name="reconnect_now">Reconnect now</string>
+    <string name="device_connection_not_started">Device connection: not started</string>
 </resources>

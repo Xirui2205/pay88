@@ -16,6 +16,7 @@ import com.telebirr.gateway.agent.sms.BalanceSnapshotRepository
 import com.telebirr.gateway.agent.sms.SmsEvidenceRepository
 import com.telebirr.gateway.agent.sms.TelebirrSmsParser
 import com.telebirr.gateway.agent.storage.SpoolRepository
+import com.telebirr.gateway.agent.transport.ConnectionDiagnosticsStore
 import com.telebirr.gateway.agent.ussd.AndroidUssdDialer
 import com.telebirr.gateway.agent.ussd.HandsetUssdSessionRegistry
 import com.telebirr.gateway.agent.ussd.profile.FlowProfileStore
@@ -35,6 +36,7 @@ class AgentContainer(val application: Application) {
     val database = AgentDatabase.get(application)
     private val localCipher = LocalPayloadCipher()
     val config = AgentConfigStore(application)
+    val connectionDiagnostics = ConnectionDiagnosticsStore(application)
     val pinVault = PinVault(application)
     val spool = SpoolRepository(database.agentDao(), localCipher)
     val smsParser = TelebirrSmsParser()

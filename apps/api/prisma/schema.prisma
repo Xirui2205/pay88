@@ -519,8 +519,13 @@ model Device {
   lastProfileInstallResult Json?
   status                 DeviceStatus             @default(pending)
   authTokenHash          String?                  @db.VarChar(255)
-  certificateFingerprint String?                  @unique @db.VarChar(128)
-  lastHeartbeatAt        DateTime?
+    certificateFingerprint String?                  @unique @db.VarChar(128)
+    lastSocketConnectedAt  DateTime?
+    lastSocketDisconnectedAt DateTime?
+    lastSocketDisconnectCode Int?
+    lastSocketDisconnectReason String?              @db.VarChar(500)
+    lastHelloAt            DateTime?
+    lastHeartbeatAt        DateTime?
   lastPermissionsOk      Boolean                  @default(false)
   lastAccessibilityOk    Boolean                  @default(false)
   openclawPaired         Boolean                  @default(false)

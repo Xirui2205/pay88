@@ -28,6 +28,10 @@ export interface Device {
   profileVersion: string
   permissionsOk: boolean
   accessibilityOk: boolean
+  credentialsConfigured?: boolean
+  socketConnected?: boolean
+  lastHelloAt?: string | null
+  disconnectReason?: string | null
   readiness: DeviceReadiness
   lastProfileInstallResult: unknown
   sims: SimWallet[]
