@@ -28,7 +28,7 @@ COPY apps/${APP} apps/${APP}
 COPY output/pdf /manuals
 RUN npm -w @telebirr/${APP} run build && cp -R apps/${APP}/dist /out
 
-FROM nginxinc/nginx-unprivileged:1.29.4-alpine@sha256:a6c4f61f456b85b8fdf7ec7ab28cc3e299440e6fb4a9dea520e5fd8fd440025e AS runtime
+FROM nginxinc/nginx-unprivileged:1.31.4-alpine@sha256:901e944d1f4fc2bd077e8f5568b98c1f6f8cdacf6b97a87747c43134a339b9a7 AS runtime
 COPY infra/docker/nginx-spa.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /out /usr/share/nginx/html
 COPY --from=build /manuals /usr/share/nginx/html/manuals
